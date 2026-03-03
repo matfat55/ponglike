@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PONG ROGUE</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="crt-scan"></div><div id="crt-edge"></div>
+<canvas id="cv"></canvas>
+
+<div id="menu-screen" class="screen">
+  <div style="text-align:center;max-width:920px;padding:0 20px;">
+    <div style="margin-bottom:46px;"><div class="title">PONG</div><div class="subtitle">ROGUE</div></div>
+    <div class="slabel">CHOOSE YOUR PADDLE</div>
+    <div class="pad-grid" id="pad-grid"></div>
+    <div class="dim" style="margin-top:36px;">W/S MOVE &middot; A/D SHIFT &middot; Q ABILITY &middot; FIRST TO 5 &middot; 12 WAVES &middot; ENEMY UPGRADES TOO</div>
+    <div id="dev-btn" style="margin-top:20px;cursor:pointer;color:#553333;font-size:7px;letter-spacing:5px;transition:color 0.2s;" onmouseenter="this.style.color='#f66'" onmouseleave="this.style.color='#553333'" onclick="SFX.sel();showDevScreen();">&#9881; DEV MODE</div>
+  </div>
+</div>
+
+<div id="cards-screen" class="screen hidden">
+  <div style="text-align:center;max-width:760px;padding:0 16px;">
+    <div style="color:#887;font-size:10px;letter-spacing:6px;margin-bottom:6px;">WAVE CLEAR</div>
+    <div id="upgrade-title" style="font-size:clamp(24px,4vw,34px);letter-spacing:10px;margin-bottom:6px;text-shadow:0 0 18px rgba(255,255,255,0.18);">SELECT YOUR REWARD</div>
+    <div id="rank-display"></div>
+    <div id="diff-display" style="margin:4px 0;"></div>
+    <div id="e-warn-box"></div>
+    <div id="next-wave-info" style="color:#887;font-size:9px;letter-spacing:2px;margin:10px 0 18px;"></div>
+    <div class="card-grid" id="card-grid"></div>
+  </div>
+</div>
+
+<div id="go-screen" class="screen hidden">
+  <div style="text-align:center;max-width:320px;">
+    <div style="font-size:clamp(36px,6vw,54px);letter-spacing:8px;text-shadow:0 0 24px rgba(255,255,255,0.18);margin-bottom:8px;">GAME<br>OVER</div>
+    <div id="go-info" style="color:#998;font-size:11px;letter-spacing:3px;margin-bottom:8px;"></div>
+    <div id="go-buffs" style="color:#a66;font-size:9px;margin-bottom:22px;"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+      <div class="btn" id="go-retry">RETRY</div>
+      <div class="btn sec" id="go-menu">CHANGE PADDLE</div>
+    </div>
+  </div>
+</div>
+
+<div id="vic-screen" class="screen hidden">
+  <div style="text-align:center;">
+    <div style="color:#998;font-size:9px;letter-spacing:8px;margin-bottom:10px;">12 WAVES CLEARED</div>
+    <div id="vic-title" style="font-size:clamp(48px,8vw,72px);letter-spacing:18px;margin-bottom:8px;">VICTORY</div>
+    <div id="vic-info" style="color:#aa9;font-size:11px;letter-spacing:3px;margin-bottom:28px;"></div>
+    <div class="btn" id="vic-again">PLAY AGAIN</div>
+  </div>
+</div>
+
+<div id="opp-screen" class="screen hidden">
+  <div style="text-align:center;max-width:920px;padding:0 16px;">
+    <div style="color:#887;font-size:9px;letter-spacing:6px;margin-bottom:6px;">WAVE <span id="opp-wave-num"></span></div>
+    <div style="font-size:clamp(22px,4vw,32px);letter-spacing:10px;margin-bottom:4px;text-shadow:0 0 18px rgba(255,255,255,0.18);">CHOOSE OPPONENT</div>
+    <div id="opp-enemy-warn" style="margin:6px 0;"></div>
+    <div style="color:#887766;font-size:9px;letter-spacing:3px;margin:4px 0 18px;">harder fights, better loot</div>
+    <div class="opp-grid" id="opp-grid"></div>
+    <div style="color:#554;font-size:7.5px;letter-spacing:2px;margin-top:22px;">RISK MORE &middot; EARN MORE</div>
+  </div>
+</div>
+
+<div id="dev-screen" class="screen hidden">
+  <div style="text-align:center;max-width:960px;padding:0 16px;max-height:90vh;overflow-y:auto;">
+    <div style="font-size:clamp(28px,5vw,42px);letter-spacing:12px;margin-bottom:4px;text-shadow:0 0 18px rgba(255,100,100,0.18);">DEV MODE</div>
+    <div style="color:#a66;font-size:8px;letter-spacing:5px;margin-bottom:16px;">TEST ANY PADDLE vs ANY ENEMY</div>
+    <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:flex-start;">
+      <div style="flex:1;min-width:200px;max-width:320px;">
+        <div style="color:#887766;font-size:9px;letter-spacing:6px;margin-bottom:10px;">PADDLE</div>
+        <div id="dev-pad-grid" style="display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+      <div style="flex:1;min-width:200px;max-width:320px;">
+        <div style="color:#887766;font-size:9px;letter-spacing:6px;margin-bottom:10px;">ENEMY</div>
+        <div id="dev-enemy-grid" style="display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
+      <div style="flex:1;min-width:200px;max-width:320px;">
+        <div style="color:#887766;font-size:9px;letter-spacing:6px;margin-bottom:10px;">OPTIONS</div>
+        <div id="dev-opts" style="display:flex;flex-direction:column;gap:4px;"></div>
+        <div class="btn" id="dev-go" style="margin-top:16px;width:100%;">LAUNCH TEST</div>
+        <div class="btn sec" id="dev-back" style="margin-top:6px;width:100%;">BACK</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js">
+</script>
+</body>
+</html>
