@@ -19,12 +19,12 @@
   .pad-card:hover .cdot{box-shadow:0 0 16px var(--pc),0 0 30px var(--pc);}
   .pad-card .pn{font-size:14px;font-weight:700;letter-spacing:3px;margin-bottom:8px;color:#ddd;transition:all 0.2s;}
   .pad-card:hover .pn{color:var(--pc);text-shadow:0 0 12px color-mix(in srgb,var(--pc) 40%,transparent);}
-  .pad-card .pd{color:#887;font-size:9.5px;line-height:1.7;margin-bottom:10px;min-height:36px;}
+  .pad-card .pd{color:#aab;font-size:9.5px;line-height:1.7;margin-bottom:10px;min-height:36px;}
   .pad-card .ps{border-top:1px solid #1a1a1a;padding-top:10px;transition:border-color 0.2s;}
   .pad-card:hover .ps{border-color:color-mix(in srgb,var(--pc) 25%,transparent);}
-  .pad-card .pa{color:#998;font-size:10px;letter-spacing:2px;transition:color 0.2s;}
+  .pad-card .pa{color:#bbb;font-size:10px;letter-spacing:2px;transition:color 0.2s;}
   .pad-card:hover .pa{color:color-mix(in srgb,var(--pc) 80%,#aaa);}
-  .pad-card .pi{color:#665;font-size:8.5px;margin-top:4px;}
+  .pad-card .pi{color:#998;font-size:8.5px;margin-top:4px;}
   .pad-card .pt{color:transparent;font-size:11px;letter-spacing:5px;margin-top:12px;height:16px;transition:all 0.25s;}
   .pad-card:hover .pt{color:var(--pc);text-shadow:0 0 10px color-mix(in srgb,var(--pc) 50%,transparent);}
 
@@ -38,7 +38,7 @@
   .up-card:hover .ri{text-shadow:0 0 20px var(--rc),0 0 40px var(--rc);}
   .up-card .cn{font-size:15px;font-weight:700;letter-spacing:2px;margin-bottom:8px;color:#eee;}
   .up-card:hover .cn{text-shadow:0 0 10px rgba(255,255,255,0.2);}
-  .up-card .cd{color:#aa9;font-size:11px;line-height:1.6;margin-bottom:12px;min-height:24px;}
+  .up-card .cd{color:#ccb;font-size:11px;line-height:1.6;margin-bottom:12px;min-height:24px;}
   .up-card .cr{font-size:9px;letter-spacing:4px;font-weight:700;padding:8px 0 0;border-top:1px solid #1a1a1a;transition:all 0.2s;}
   .up-card:hover .cr{border-color:color-mix(in srgb,var(--rc) 30%,transparent);}
   .up-card .ab-tag{font-size:8px;letter-spacing:3px;padding:4px 10px;border-radius:2px;display:inline-block;margin-bottom:8px;}
@@ -55,13 +55,13 @@
   .opp-card .opp-diff{font-size:38px;font-weight:900;letter-spacing:4px;margin-bottom:4px;transition:text-shadow 0.2s;font-family:'Space Mono',monospace;}
   .opp-card:hover .opp-diff{text-shadow:0 0 24px var(--dc),0 0 48px var(--dc);}
   .opp-card .opp-name{font-size:15px;font-weight:700;letter-spacing:4px;margin-bottom:3px;color:#ddd;}
-  .opp-card .opp-tag{font-size:11px;color:#887;letter-spacing:3px;margin-bottom:6px;min-height:16px;}
+  .opp-card .opp-tag{font-size:11px;color:#aaa;letter-spacing:3px;margin-bottom:6px;min-height:16px;}
   .opp-card .opp-boss{font-size:9px;letter-spacing:5px;padding:4px 12px;border-radius:2px;display:inline-block;margin-bottom:6px;background:rgba(255,68,68,0.15);color:#f66;border:1px solid rgba(255,68,68,0.3);text-shadow:0 0 6px rgba(255,68,68,0.3);}
   .opp-card .opp-stats{display:flex;gap:6px;justify-content:center;margin:10px 0;}
-  .opp-card .opp-stat{font-size:8.5px;color:#998;letter-spacing:1.5px;padding:3px 8px;border:1px solid #1a1a1a;border-radius:2px;background:rgba(255,255,255,0.015);}
+  .opp-card .opp-stat{font-size:8.5px;color:#bbb;letter-spacing:1.5px;padding:3px 8px;border:1px solid #222;border-radius:2px;background:rgba(255,255,255,0.025);}
   .opp-card .opp-reward-box{border-top:1px solid #1a1a1a;padding-top:14px;margin-top:10px;transition:border-color 0.2s;}
   .opp-card:hover .opp-reward-box{border-color:color-mix(in srgb,var(--dc) 25%,transparent);}
-  .opp-card .opp-reward-label{font-size:8.5px;letter-spacing:4px;color:#776;margin-bottom:10px;}
+  .opp-card .opp-reward-label{font-size:8.5px;letter-spacing:4px;color:#99a;margin-bottom:10px;}
   .opp-card .opp-tiers{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
   .opp-card .opp-tier-pill{font-size:8px;letter-spacing:1.5px;padding:4px 8px;border-radius:2px;border:1px solid #1a1a1a;white-space:nowrap;font-weight:700;}
   .opp-card .opp-fight{color:transparent;font-size:12px;letter-spacing:6px;margin-top:14px;height:18px;transition:all 0.25s;}
@@ -72,5 +72,5 @@
   .btn:hover{background:linear-gradient(175deg,#181818,#0c0c0e);border-color:#888;box-shadow:0 0 24px rgba(255,255,255,0.06);text-shadow:0 0 8px rgba(255,255,255,0.15);}
   .btn.sec{border-color:#333;color:#999;font-size:12px;letter-spacing:4px;padding:12px 32px;}
   .btn.sec:hover{background:linear-gradient(175deg,#101010,#080808);border-color:#555;box-shadow:none;}
-  .dim{color:#776;font-size:10px;letter-spacing:2px;line-height:2.2;}
-  .slabel{color:#887766;font-size:12px;letter-spacing:8px;margin-bottom:22px;text-shadow:0 0 6px rgba(255,200,150,0.08);}
+  .dim{color:#99a;font-size:10px;letter-spacing:2px;line-height:2.2;}
+  .slabel{color:#aa9988;font-size:12px;letter-spacing:8px;margin-bottom:22px;text-shadow:0 0 6px rgba(255,200,150,0.15);}

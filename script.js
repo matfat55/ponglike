@@ -12,6 +12,15 @@ const rng=(a,b)=>a+Math.random()*(b-a);
 const easeOut=t=>1-(1-t) ** 3;
 function simBallY(bx,by,vx,vy,tx){if(vx<=0)return by;let px=bx,py=by,pvx=vx,pvy=vy;for(let i=0;i<500;i++){px+=pvx*.008;py+=pvy*.008;if(py<5){py=5;pvy=Math.abs(pvy);}if(py>GH-5){py=GH-5;pvy=-Math.abs(pvy);}if(px>=tx)return py;}return py;}
 
+// Rally speed multiplier helper
+function getRallyMul(hits){
+  if(!hits||hits<=0) return 1;
+  // First hit gives a noticeable boost, subsequent hits grow more slowly
+  const initial = 1.08; // slightly larger first-hit increase
+  const step = 1.04;    // smaller per-hit growth than previous 1.05
+  return initial * Math.pow(step, Math.max(0,hits-1));
+}
+
 // ═══ DIFFICULTY RATINGS ═══
 const DIFF_RANKS=['F','E','D','C','B','A','S','SS','SSS'];
 const DIFF_COLORS={F:'#446644',E:'#558855',D:'#669966',C:'#88aa88',B:'#66aaff',A:'#5588ff',S:'#ffaa44',SS:'#ff6644',SSS:'#ff44ff'};
@@ -195,8 +204,8 @@ function waveCfg(wv){
   const boss=wv>1&&wv%3===0;const rankIdx=Math.min(Math.floor(wv/1.5),DIFF_RANKS.length-1);
   const diff=boss?DIFF_RANKS[Math.min(rankIdx+1,DIFF_RANKS.length-1)]:DIFF_RANKS[rankIdx];
   let aiSpd,aiReact;
-  if(rankIdx>=5){aiSpd=220+wv*30+(boss?80:0);aiReact=clamp(.25+wv*.07+(boss?.15:0),0,.97);}
-  else{aiSpd=220+wv*22+(boss?50:0);aiReact=clamp(.06+wv*.025+(boss?.06:0),0,.4);}
+  if(rankIdx>=5){aiSpd=260+wv*30+(boss?80:0);aiReact=clamp(.25+wv*.07+(boss?.15:0),0,.97);}
+  else{aiSpd=260+wv*22+(boss?50:0);aiReact=clamp(.06+wv*.025+(boss?.06:0),0,.4);}
   const eH=BASE_PAD_H;
   const pool=getEnemiesForDiff(diff);
   const enemy=pool.length>0?pool[Math.floor(Math.random()*pool.length)]:ENEMIES[0];
@@ -209,13 +218,46 @@ let curScreen='menu',padId='classic',wave=1,savedState=null,enemyUps=[],curCards
 
 function addSparks(g,x,y,n=8,sp=120,col=null){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=30+Math.random()*sp;g.sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.15+Math.random()*.3,max:.45,col});}}
 
-function resetBall(g,dir){g.rallyBase=g.bs;g.rallyHits=0;g.ballSpd=g.rallyBase;g.bx=GW/2;g.by=GH/2+rng(-60,60);g.bvx=0;g.bvy=0;g.pendingDir=dir;g.startPause=0.5;g.shUsed=false;g.combo=0;g.trail=[];g.curveNext=false;g.smashNext=false;g.ghostBall=false;g.ghostT=0;}
+function resetBall(g,dir){
+  // start a fresh point/rally
+  g.rallyBase=g.bs;
+  g.rallyHits=0;
+  g.ballSpd=g.rallyBase;
+  g.bx=GW/2;
+  g.by=GH/2+rng(-60,60);
+  g.bvx=0;
+  g.bvy=0;
+  g.pendingDir=dir;
+  g.startPause=0.5;
+  g.shUsed=false;
+  g.combo=0;
+  g.trail=[];
+  g.curveNext=false;
+  g.smashNext=false;
+  g.ghostBall=false;
+  g.ghostT=0;
+
+  // the very best enemies should wear down over the course of a long
+  // exchange. after each rally we nudge their reaction speed and paddle
+  // velocity slightly toward easier values, giving a skilled player a
+  // fighting chance if they can keep the ball alive. we only apply the
+  // effect when the configured difficulty is S or harder so low‑tier AI
+  // isn't affected.
+  const diffIdx = DIFF_RANKS.indexOf(g.cfg.diff);
+  if (diffIdx >= DIFF_RANKS.indexOf('S')) {
+    // make AI degrade faster across rallies so skilled players can
+    // more quickly overcome top-tier opponents during long exchanges.
+    const decay = 0.985; // stronger per-rally reduction (~1.5% per rally)
+    g.aiSpd = Math.max(80, g.aiSpd * decay);
+    g.aiReact = Math.max(0.02, g.aiReact * decay);
+  }
+}
 
 function newGame(pid,wv,sv,eUps,oppCfg){
   const pad=PADDLES.find(p=>p.id===pid);const cfg=oppCfg||waveCfg(wv);
   const am=sv?.aiMod??1,bs=sv?.bs??BASE_SPD;
   const _iDir=(Math.random()>.5?1:-1);const ng={padId:pid,pad,cfg,t:0,bx:GW/2,by:GH/2+rng(-40,40),bvx:0,bvy:0,pendingDir:_iDir,startPause:0.5,bs,rallyBase:bs,ballSpd:bs,rallyHits:0,trail:[],
-    px:PX_HOME,py:GH/2,ph:sv?.ph??BASE_PAD_H*pad.hMul,pSpd:sv?.pSpd??420,horizMul:sv?.horizMul??1,ey:GH/2,eH:cfg.eH,eHBase:cfg.eH,aiSpd:cfg.aiSpd*am,aiMod:am,aiReact:cfg.aiReact,pScore:0,eScore:0,lives:sv?.lives??3,shields:sv?.shields??0,shUsed:false,cdMul:sv?.cdMul??1,
+    px:PX_HOME,py:GH/2,ph:sv?.ph??BASE_PAD_H*pad.hMul,pSpd:sv?.pSpd??480,horizMul:sv?.horizMul??1,ey:GH/2,eH:cfg.eH,eHBase:cfg.eH,aiSpd:cfg.aiSpd*am,aiMod:am,aiReact:cfg.aiReact,pScore:0,eScore:0,lives:sv?.lives??3,shields:sv?.shields??0,shUsed:false,cdMul:sv?.cdMul??1,
     // Abilities (passive)
     edge:sv?.edge??false,rico:sv?.rico??false,magnet:sv?.magnet??false,dblScore:sv?.dblScore??false,vampire:sv?.vampire??false,
     freeze:sv?.freeze??false,afterimage:sv?.afterimage??false,shockwave:sv?.shockwave??false,
@@ -287,7 +329,7 @@ function update(dt){
   if(g.flash>0)g.flash-=dt*4;if(g.hitFlash>0)g.hitFlash-=dt*6;if(g.scoreFlash>0)g.scoreFlash-=dt*2;if(g.chromaShift>0)g.chromaShift-=dt*5;
   g.ghostA=g.cfg.ghost?.15+Math.abs(Math.sin(g.t*6))*.65:1;
   // Start-of-point pause: ball frozen, waiting to launch
-  if(g.startPause>0){g.startPause-=dt;if(g.startPause<=0){const spd=g.rallyBase*Math.pow(1.05,g.rallyHits);g.ballSpd=spd;g.bvx=g.pendingDir*spd;g.bvy=rng(-160,160);}}
+  if(g.startPause>0){g.startPause-=dt;if(g.startPause<=0){const spd=g.rallyBase*getRallyMul(g.rallyHits);g.ballSpd=spd;g.bvx=g.pendingDir*spd;g.bvy=rng(-160,160);}}
   if(g.ghostT>0){g.ghostT-=dt;if(g.ghostT<=0)g.ghostBall=false;}
   if(g.wallT>0){g.wallT-=dt;if(g.wallT<=0)g.placedWall=null;}
   if(g.shrinkT>0){g.shrinkT-=dt;}
@@ -354,7 +396,7 @@ function update(dt){
   }
   // Berserker: reset stacks when enemy scores (handled in scoring section)
 
-  const rallyMul=Math.pow(1.05,g.rallyHits);g.ballSpd=g.rallyBase*rallyMul;
+  const rallyMul=getRallyMul(g.rallyHits);g.ballSpd=g.rallyBase*rallyMul;
 
   // Time warp: ball speed modifier based on x position
   let twMul=1;
@@ -432,6 +474,8 @@ function update(dt){
       const maxVy=spd*0.92;
       if(Math.abs(g.bvy)>maxVy){g.bvy=Math.sign(g.bvy)*maxVy;g.bvx=Math.sqrt(spd*spd-g.bvy*g.bvy);}
       g.bx=pR+bs2+1;
+      // Knockback removed: previously ball impact pushed paddle back, now disabled
+      // g.px=clamp(g.px-8,PX_HOME-hMax,PX_HOME+hMax);
       const finalAng=Math.atan2(g.bvy,g.bvx); // used by afterimage
       g.combo++;g.rallyHits++;g.flash=Math.max(g.flash,.18);g.hitFlash=1;g.shake=Math.max(g.shake,.03);
       SFX.paddle();addSparks(g,g.px+PAD_W/2,g.by,5,80,col.t);
@@ -480,7 +524,7 @@ function update(dt){
       if(g.berserker){
         g.berserkerStacks=(g.berserkerStacks||0)+1;
         g.bs=g._berserkerBase*(1+g.berserkerStacks*0.08);
-        g.ballSpd=g.bs*Math.pow(1.05,g.rallyHits);
+        g.ballSpd=g.bs*getRallyMul(g.rallyHits);
       }
       // Overcharge (secret): every 3rd consecutive hit, ball pierces
       if(g.overcharge){
@@ -506,11 +550,30 @@ function update(dt){
       g.bx=EX-PAD_W/2-bs2-2;g.combo=0;g.rallyHits++;
       if(g.chaos)g.bs=Math.min(g.bs*1.04,600);
       SFX.paddle();g.shake=.02;addSparks(g,EX-PAD_W/2,g.by,4,60);
+      // knockback for enemy paddle when the ball is moving fast
+      {
+        const curSpd=Math.hypot(g.bvx,g.bvy);
+        const KB_THRESH=BASE_SPD*1.4; // only trigger above roughly 40% faster than base
+        if(curSpd>KB_THRESH){
+          // weaker opponents (lower difficulty index) suffer more knockback
+          const diffIdx=DIFF_RANKS.indexOf(g.cfg.diff);
+          const maxIdx=DIFF_RANKS.length-1;
+          // map 0->1.2, maxIdx->0.4 (can tweak these constants as desired)
+          const kbMul=lerp(1.2,0.4,diffIdx/maxIdx);
+          // amount to push: proportional to how much speed exceeds threshold
+          const amt=(curSpd-KB_THRESH)*0.02*kbMul;
+          if(amt>0){
+            // push vertically away from the ball impact point
+            const dir=g.by<g.ey?-1:1;
+            g.ey=clamp(g.ey+dir*amt, g.eH/2, GH-g.eH/2);
+          }
+        }
+      }
       // Master of Skill: enemy hit resets ball to base speed, +20% base permanently
       if(g.masterSkill&&g._masterHitBoosted){
         g._masterHitBoosted=false;
         g.bs*=1.2; // permanent 20% base increase per rally hit
-        const resetSpd=g.bs*Math.pow(1.05,g.rallyHits);
+        const resetSpd=g.bs*getRallyMul(g.rallyHits);
         const cur=Math.hypot(g.bvx,g.bvy);
         if(cur>0.1){const r=resetSpd/cur;g.bvx*=r;g.bvy*=r;}
       }
@@ -616,7 +679,7 @@ function update(dt){
     if(g.dashT>0)g.dashT-=dt;
     if(g.blinkFlash>0)g.blinkFlash-=dt*4;
     if(g.bulkT>0){g.bulkT-=dt;}
-    if(g.overdriveT>0){g.overdriveT-=dt;g.ballSpd=g.bs*Math.pow(1.05,g.rallyHits)*2;if(g.overdriveT<=0)g.ballSpd=g.bs*Math.pow(1.05,g.rallyHits);}
+    if(g.overdriveT>0){g.overdriveT-=dt;g.ballSpd=g.bs*getRallyMul(g.rallyHits)*2;if(g.overdriveT<=0)g.ballSpd=g.bs*getRallyMul(g.rallyHits);}
     if(g.cloneT>0){g.cloneT-=dt;g.cloneY=lerp(g.cloneY,g.by,dt*3);g.cloneY=clamp(g.cloneY,g.eH/2,GH-g.eH/2);}
     if(g.spinCurveT>0){g.spinCurveT-=dt;const ease=g.spinCurveT/.6;g.bvy+=g._spinDir*280*ease*dt;g.bvy=clamp(g.bvy,-g.ballSpd*1.5,g.ballSpd*1.5);}
 
@@ -851,12 +914,36 @@ function draw(ctx,cw,ch){
   // Doppelganger paddle
   if(g.doppel){const dpX=EX-60;ctx.globalAlpha=.3+.15*Math.sin(g.t*3);ctx.shadowColor=col.g+'0.4)';ctx.shadowBlur=12;ctx.fillStyle=col.p;ctx.fillRect(dpX-PAD_W/2,g.py-g.ph*.4,PAD_W,g.ph*.8);ctx.shadowBlur=0;ctx.globalAlpha=1;}
 
-  // Enemy paddle
-  ctx.globalAlpha=g.ghostA;const eSh=g.shrinkT>0;const frozen=g.freezeT>0;
-  ctx.shadowColor=frozen?'rgba(100,150,255,0.4)':eSh?'rgba(255,80,80,0.3)':'rgba(255,255,255,0.35)';ctx.shadowBlur=frozen?8:eSh?3:4;
-  ctx.fillStyle=frozen?'#88aaff':eSh?'#866':'#ddd';ctx.fillRect(EX-PAD_W/2,g.ey-g.eH/2,PAD_W,g.eH);ctx.shadowBlur=0;ctx.globalAlpha=1;
+  // Enemy paddle — color coded by difficulty with visual specialties
+  const _eDiff=g.cfg.diff,_eId=g.cfg.enemy.id;
+  const _eDColMap={F:'#888',E:'#bbaa44',D:'#ff8833',C:'#9955ff',B:'#22ddaa',A:'#4499ff',S:'#00ddff',SS:'#ff4422',SSS:'#ff1133'};
+  const _eDShdMap={F:'120,120,120',E:'180,160,60',D:'255,130,50',C:'150,80,255',B:'30,210,170',A:'68,160,255',S:'0,220,255',SS:'255,60,30',SSS:'255,20,50'};
+  let _eCol=_eDColMap[_eDiff]||'#ddd',_eShdw=_eDShdMap[_eDiff]||'200,200,200';
+  if(_eId==='void'){_eCol='#8822ff';_eShdw='140,30,255';}
+  if(_eId==='apex'){_eCol='#ff0033';_eShdw='255,0,50';}
+  const eSh=g.shrinkT>0;const frozen=g.freezeT>0;
+  const _eDispCol=frozen?'#88aaff':eSh?'#886644':_eCol;
+  const _eDispShdw=frozen?'100,150,255':eSh?'180,110,60':_eShdw;
+  const _eGlow=_eDiff==='SSS'?14:_eDiff==='SS'?10:6;
+  ctx.globalAlpha=g.ghostA;
+  ctx.shadowColor=`rgba(${_eDispShdw},${frozen?.4:eSh?.3:.55})`;ctx.shadowBlur=frozen?8:eSh?3:_eGlow;
+  ctx.fillStyle=_eDispCol;ctx.fillRect(EX-PAD_W/2,g.ey-g.eH/2,PAD_W,g.eH);ctx.shadowBlur=0;ctx.globalAlpha=1;
+  // Shrink scan lines
   if(eSh){ctx.globalAlpha=.12+.08*Math.sin(g.t*20);ctx.fillStyle='#f44';for(let i=0;i<4;i++){ctx.fillRect(EX-35,g.ey+Math.sin(g.t*11+i*2.3)*g.eH*1.5,70,1);}ctx.globalAlpha=1;}
+  // Frozen overlay
   if(frozen){ctx.globalAlpha=.15+.08*Math.sin(g.t*8);ctx.fillStyle='#88ccff';ctx.fillRect(EX-24,g.ey-g.eH/2-8,48,g.eH+16);ctx.globalAlpha=1;}
+  // Ghost enemies: ethereal pulsing aura ring
+  if(g.cfg.ghost&&!frozen){const _ga=.16*Math.abs(Math.sin(g.t*3.5));ctx.globalAlpha=_ga;ctx.strokeStyle='#22ddaa';ctx.lineWidth=1.2;ctx.shadowColor='rgba(30,210,170,0.6)';ctx.shadowBlur=16;ctx.strokeRect(EX-PAD_W/2-6,g.ey-g.eH/2-6,PAD_W+12,g.eH+12);ctx.shadowBlur=0;ctx.globalAlpha=1;}
+  // Chaos enemies: pulsing colored outer border
+  if(g.chaos&&!frozen){const _cp=.5+.5*Math.sin(g.t*7);ctx.globalAlpha=.14+.1*_cp;const _cr=255,_cg=40+Math.sin(g.t*4)*40|0;ctx.strokeStyle=`rgba(${_cr},${_cg},0,1)`;ctx.lineWidth=1.5;ctx.shadowColor=`rgba(${_cr},${_cg},0,0.5)`;ctx.shadowBlur=10;ctx.strokeRect(EX-PAD_W/2-4,g.ey-g.eH/2-4,PAD_W+8,g.eH+8);ctx.shadowBlur=0;ctx.globalAlpha=1;}
+  // Jitter enemies: rapid horizontal speed-streak lines
+  if(g.jitter&&!frozen){for(let i=0;i<3;i++){const _yo=Math.sin(g.t*28+i*4.2)*g.eH*.42;ctx.globalAlpha=.2;ctx.fillStyle='#ff8833';ctx.fillRect(EX-PAD_W/2-14,g.ey+_yo-.5,PAD_W+28,1);}ctx.globalAlpha=1;}
+  // TrickAng enemies: diagonal cross-slash marks
+  if(g.trickAng&&!eSh&&!frozen){ctx.globalAlpha=.22+.08*Math.sin(g.t*5);ctx.strokeStyle='#9955ff';ctx.lineWidth=1;ctx.shadowColor='rgba(150,80,255,0.4)';ctx.shadowBlur=6;ctx.beginPath();ctx.moveTo(EX-2,g.ey-g.eH*.38);ctx.lineTo(EX+2,g.ey+g.eH*.38);ctx.moveTo(EX-2,g.ey+g.eH*.38);ctx.lineTo(EX+2,g.ey-g.eH*.38);ctx.stroke();ctx.shadowBlur=0;ctx.globalAlpha=1;}
+  // SSS-tier: intense pulsing outer glow ring
+  if(_eDiff==='SSS'&&!frozen){const _sp=.5+.5*Math.sin(g.t*14);ctx.globalAlpha=.1+.12*_sp;ctx.strokeStyle=_eId==='void'?'#aa22ff':'#ff0033';ctx.lineWidth=2;ctx.shadowColor=_eId==='void'?'rgba(170,30,255,0.6)':'rgba(255,0,50,0.7)';ctx.shadowBlur=22;ctx.strokeRect(EX-PAD_W/2-9,g.ey-g.eH/2-9,PAD_W+18,g.eH+18);ctx.shadowBlur=0;ctx.globalAlpha=1;}
+  // SS-tier: aggressive red aura flicker
+  if(_eDiff==='SS'&&!frozen){const _sa=.06+.06*Math.sin(g.t*9);ctx.globalAlpha=_sa;ctx.fillStyle='#ff4422';ctx.shadowColor='rgba(255,60,30,0.3)';ctx.shadowBlur=12;ctx.fillRect(EX-PAD_W/2-5,g.ey-g.eH/2-5,PAD_W+10,g.eH+10);ctx.shadowBlur=0;ctx.globalAlpha=1;}
   // Clone paddle (enemy ability)
   if(g.cloneT>0){const clX=EX-35;const ca2=Math.min(g.cloneT,.5)*2;
     ctx.globalAlpha=ca2*.4;ctx.fillStyle='#88f';ctx.shadowColor='rgba(100,100,255,0.4)';ctx.shadowBlur=8;
@@ -1199,7 +1286,7 @@ function draw(ctx,cw,ch){
   // HUD
   ctx.fillStyle=col.p;ctx.shadowColor=col.g+'0.5)';ctx.shadowBlur=3;for(let i=0;i<Math.max(0,g.lives);i++)ctx.fillRect(14+i*12,GH-14,5,5);ctx.shadowBlur=0;
   if(g.shields>0){ctx.fillStyle='#6688aa';ctx.font='8px "Share Tech Mono",monospace';ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillText('SAVE x'+g.shields,14,GH-19);}
-  if(g.rallyHits>0){const spdPct=Math.round((Math.pow(1.05,g.rallyHits)-1)*100);const spdA=g.rallyHits>=4?.5+.2*Math.sin(g.t*6):.35;ctx.fillStyle=col.g+spdA+')';ctx.font='8px "Share Tech Mono",monospace';ctx.textAlign='right';ctx.textBaseline='alphabetic';ctx.fillText('SPD +'+spdPct+'%',GW-14,GH-20);}
+  if(g.rallyHits>0){const spdPct=Math.round((getRallyMul(g.rallyHits)-1)*100);const spdA=g.rallyHits>=4?.5+.2*Math.sin(g.t*6):.35;ctx.fillStyle=col.g+spdA+')';ctx.font='8px "Share Tech Mono",monospace';ctx.textAlign='right';ctx.textBaseline='alphabetic';ctx.fillText('SPD +'+spdPct+'%',GW-14,GH-20);} 
   ctx.fillStyle='#665';ctx.font='7.5px "Share Tech Mono",monospace';ctx.textAlign='center';ctx.textBaseline='alphabetic';
   const eL=g.cfg.enemy.id!=='basic'?' '+g.cfg.enemy.tag+g.cfg.enemy.name:'';
   const eAL=g.eAbil.id!=='none'?' ['+g.eAbil.name+']':'';
@@ -1303,7 +1390,7 @@ function showUpgradeScreen(rewardTier,clearedDiff){
   if(rewardTier==='secret'){SFX.legendary();setTimeout(()=>SFX.legendary(),200);}
 
   const wb=$('e-warn-box');
-  if(curEUp)wb.innerHTML=`<div class="e-warn"><div style="color:#a66;font-size:7.5px;letter-spacing:5px;margin-bottom:5px;">ENEMY ALSO UPGRADES</div><div style="color:#f66;font-size:14px;font-weight:700;letter-spacing:3px;">${curEUp.icon} ${curEUp.name}</div><div style="color:#b88;font-size:9px;margin-top:4px;">${curEUp.desc}</div></div>`;
+  if(curEUp)wb.innerHTML=`<div class="e-warn"><div style="color:#cc8888;font-size:7.5px;letter-spacing:5px;margin-bottom:5px;">ENEMY ALSO UPGRADES</div><div style="color:#ff6666;font-size:14px;font-weight:700;letter-spacing:3px;">${curEUp.icon} ${curEUp.name}</div><div style="color:#ddaa99;font-size:9px;margin-top:4px;">${curEUp.desc}</div></div>`;
   else wb.innerHTML='';
 
   const nd=DIFF_RANKS[Math.min(Math.floor(wave/1.5),DIFF_RANKS.length-1)];const ndc=DIFF_COLORS[nd]||'#fff';
@@ -1337,7 +1424,7 @@ function generateOpponents(wv){
   const easyDiff=DIFF_RANKS[easyRank];
   const easyPool=getEnemiesForDiff(easyDiff);
   const easyEnemy=easyPool[Math.floor(Math.random()*easyPool.length)]||ENEMIES[0];
-  const eAiSpd=200+wv*20,eReact=clamp(.04+wv*.02,0,.35),eEH=BASE_PAD_H;
+  const eAiSpd=240+wv*20,eReact=clamp(.04+wv*.02,0,.35),eEH=BASE_PAD_H;
   const easyCfg={wv,boss:false,diff:easyDiff,aiSpd:eAiSpd,aiReact:eReact,eH:eEH,enemy:easyEnemy,trickAng:false,ghost:false,chaos:false,jitter:false};
   easyEnemy.mod(easyCfg);
   opponents.push({cfg:easyCfg,label:'EASY',labelCol:'#4a7'});
@@ -1351,9 +1438,9 @@ function generateOpponents(wv){
   const normRankIdx=DIFF_RANKS.indexOf(normDiff);
   let nAiSpd,nReact;
   if(normRankIdx>=5){ // A rank index=5
-    nAiSpd=220+wv*30+(normBoss?80:0);nReact=clamp(.25+wv*.07+(normBoss?.15:0),0,.96);
+    nAiSpd=260+wv*30+(normBoss?80:0);nReact=clamp(.25+wv*.07+(normBoss?.15:0),0,.96);
   }else{
-    nAiSpd=220+wv*22+(normBoss?50:0);nReact=clamp(.06+wv*.025+(normBoss?.06:0),0,.4);
+    nAiSpd=260+wv*22+(normBoss?50:0);nReact=clamp(.06+wv*.025+(normBoss?.06:0),0,.4);
   }
   const nEH=BASE_PAD_H;
   const normCfg={wv,boss:normBoss,diff:normDiff,aiSpd:nAiSpd,aiReact:nReact,eH:nEH,enemy:normEnemy,trickAng:false,ghost:false,chaos:false,jitter:false};
@@ -1368,9 +1455,9 @@ function generateOpponents(wv){
   const hardEnemy=hardPool[Math.floor(Math.random()*hardPool.length)]||ENEMIES[Math.min(hardRank*2,ENEMIES.length-1)];
   let hAiSpd,hReact;
   if(hardRank>=5){ // A rank+
-    hAiSpd=240+wv*35+(hardBoss?100:0);hReact=clamp(.3+wv*.08+(hardBoss?.2:0),0,.97);
+    hAiSpd=280+wv*35+(hardBoss?100:0);hReact=clamp(.3+wv*.08+(hardBoss?.2:0),0,.97);
   }else{
-    hAiSpd=230+wv*25+(hardBoss?60:0);hReact=clamp(.08+wv*.03+(hardBoss?.08:0),0,.45);
+    hAiSpd=270+wv*25+(hardBoss?60:0);hReact=clamp(.08+wv*.03+(hardBoss?.08:0),0,.45);
   }
   const hEH=BASE_PAD_H;
   const hardCfg={wv,boss:hardBoss,diff:hardDiff,aiSpd:hAiSpd,aiReact:hReact,eH:hEH,enemy:hardEnemy,trickAng:false,ghost:false,chaos:false,jitter:false};
@@ -1385,7 +1472,7 @@ function showOpponentSelect(){
   const opps=generateOpponents(wave);
 
   const wb=$('opp-enemy-warn');
-  if(enemyUps.length>0)wb.innerHTML=`<div style="color:#a66;font-size:8px;letter-spacing:3px;">${enemyUps.length} ENEMY BUFF${enemyUps.length>1?'S':''} ACTIVE</div>`;
+  if(enemyUps.length>0)wb.innerHTML=`<div style="color:#dd8888;font-size:8px;letter-spacing:3px;">${enemyUps.length} ENEMY BUFF${enemyUps.length>1?'S':''} ACTIVE</div>`;
   else wb.innerHTML='';
 
   const grid=$('opp-grid');grid.innerHTML='';
@@ -1408,9 +1495,9 @@ function showOpponentSelect(){
     const eab=getEnemyAbil(cfg.enemy.id);
     if(eab.id!=='none'){
       html+=`<div style="margin:4px 0 6px;padding:4px 8px;border:1px solid rgba(255,80,80,0.15);border-radius:2px;background:rgba(255,40,40,0.04);">`;
-      html+=`<div style="font-size:6.5px;letter-spacing:3px;color:#a66;margin-bottom:2px;">ABILITY</div>`;
-      html+=`<div style="font-size:10px;color:#f88;letter-spacing:2px;">${eab.icon} ${eab.name}</div>`;
-      html+=`<div style="font-size:7px;color:#a88;margin-top:2px;">${eab.desc}</div>`;
+      html+=`<div style="font-size:6.5px;letter-spacing:3px;color:#cc8888;margin-bottom:2px;">ABILITY</div>`;
+      html+=`<div style="font-size:10px;color:#ffaaaa;letter-spacing:2px;">${eab.icon} ${eab.name}</div>`;
+      html+=`<div style="font-size:7px;color:#ccaa99;margin-top:2px;">${eab.desc}</div>`;
       html+=`</div>`;
     }
 
