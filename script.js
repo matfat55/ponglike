@@ -1633,16 +1633,6 @@ const ALL_CARDS = [
 		},
 	},
 	{
-		id: "timewarp",
-		name: "TIME WARP",
-		desc: "Ball slows down near enemy, speeds up near you",
-		tier: "legendary",
-		type: "ability",
-		fn: (s) => {
-			s.timewarp = true;
-		},
-	},
-	{
 		id: "multicast",
 		name: "ECHO CAST",
 		desc: "Your paddle ability triggers twice per use",
@@ -1841,6 +1831,7 @@ function softenLowRankAi(cfg) {
 
 // ═══ GAME STATE ═══
 let curScreen = "menu",
+	paused = false,
 	padId = "classic",
 	wave = 1,
 	savedState = null,
@@ -2850,8 +2841,9 @@ function update(dt) {
 	if (g.blizzardT > 0 && g.bx > GW * 0.4) twMul *= 0.3;
 
 	// Player - compute velocity from last frame position
-	const sp = g.pSpd,
-		hMax = HORIZ * g.horizMul;
+	let sp = g.pSpd;
+	if (keysDown[" "]) sp *= 0.5;
+	const hMax = HORIZ * g.horizMul;
 	const invert = g.ctrlInvertT > 0 ? -1 : 1;
 	if (g.perfectPilot) {
 		const pCatchX = g.px + PAD_W / 2 + 2;
@@ -3213,7 +3205,7 @@ function update(dt) {
 	if (g.curveNext && g.bx > GW * 0.65) g.curveNext = false;
 
 	// Enemy hit
-	const canBlock = g.freezeT <= 0;
+	const canBlock = true; // g.freezeT <= 0;
 	if (
 		g.bvx > 0 &&
 		g.bx + bs2 > EX - PAD_W / 2 - 2 &&
@@ -6382,6 +6374,7 @@ function doAbility() {
 		!g ||
 		g.done ||
 		g.abCD > 0 ||
+		g.pStunT > 0 ||
 		(g.foolDialogActive && g.foolDialogBlocking)
 	)
 		return;
@@ -6867,6 +6860,13 @@ function showVictory() {
 // ═══ INPUT ═══
 window.addEventListener("keydown", (e) => {
 	const k = e.key.toLowerCase();
+	if (k === "escape") {
+		if (curScreen === null && g && !g.done) {
+			paused = !paused;
+		} else if (curScreen === "dev-screen") {
+			showScreen("menu-screen");
+		}
+	}
 	keysDown[k] = true;
 	if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k))
 		e.preventDefault();
@@ -7251,6 +7251,21 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 function loop(now) {
+	if (paused && curScreen === null && g) {
+		draw(ctx, cv.width, cv.height);
+		ctx.fillStyle = "rgba(0,0,0,0.4)";
+		ctx.fillRect(0, 0, cv.width, cv.height);
+		ctx.fillStyle = "#fff";
+		ctx.font = 'bold 40px "Share Tech Mono",monospace';
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.shadowColor = "black";
+		ctx.shadowBlur = 10;
+		ctx.fillText("PAUSED", cv.width / 2, cv.height / 2);
+		ctx.shadowBlur = 0;
+		requestAnimationFrame(loop);
+		return;
+	}
 	const dt = Math.min((now - last) / 1000, 0.04);
 	last = now;
 	if (curScreen === null && g) {
