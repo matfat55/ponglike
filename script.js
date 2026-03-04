@@ -2043,8 +2043,8 @@ function resetBall(g, dir) {
 	g.bvy = 0;
 	g.pendingDir = dir;
 	g.pendingVy = rng(-160, 160);
-	g.startPause = 0.42;
-	g.startPauseMax = 0.42;
+	g.startPause = 1.0;
+	g.startPauseMax = 1.0;
 	g.shUsed = false;
 	g.combo = 0;
 	g.trail = [];
@@ -2098,8 +2098,8 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		bvy: 0,
 		pendingDir: _iDir,
 		pendingVy: _iVy,
-		startPause: 0.42,
-		startPauseMax: 0.42,
+		startPause: 1.0,
+		startPauseMax: 1.0,
 		bs,
 		rallyBase: bs,
 		ballSpd: bs,
@@ -2948,8 +2948,9 @@ function update(dt) {
 	if (g.blizzardT > 0 && g.bx > GW * 0.4) twMul *= 0.3;
 
 	// Player - compute velocity from last frame position
-	const sp = g.pSpd,
-		hMax = HORIZ * g.horizMul;
+	let sp = g.pSpd;
+	if (keysDown[" "]) sp *= 0.5;
+	const hMax = HORIZ * g.horizMul;
 	const invert = g.ctrlInvertT > 0 ? -1 : 1;
 	if (g.perfectPilot) {
 		const targetY = clamp(g.by, g.ph / 2, GH - g.ph / 2);
@@ -3338,14 +3339,12 @@ function update(dt) {
 	if (g.curveNext && g.bx > GW * 0.65) g.curveNext = false;
 
 	// Enemy hit
-	const canBlock = g.freezeT <= 0;
 	if (
 		g.bvx > 0 &&
 		g.bx + bs2 > EX - PAD_W / 2 - 2 &&
 		g.bx - bs2 < EX + PAD_W / 2 + 2 &&
 		g.by + bs2 > g.ey - g.eH / 2 &&
-		g.by - bs2 < g.ey + g.eH / 2 &&
-		canBlock
+		g.by - bs2 < g.ey + g.eH / 2
 	) {
 		if (g._pierce) {
 			g._pierce = false;
@@ -4241,7 +4240,7 @@ function update(dt) {
 				g.eAbilCD = 0;
 			}
 		}
-		if (g.eAbilCD <= 0 && g.eAbilPhase === "idle") {
+		if (g.eAbilCD <= 0 && g.eAbilPhase === "idle" && g.freezeT <= 0) {
 			const ab = g.eAbil;
 			const ballApproaching = g.bvx > 0 && g.bx > GW * 0.3;
 			const ballClose = g.bvx > 0 && g.bx > GW * 0.55;
@@ -4872,7 +4871,7 @@ function draw(ctx, cw, ch) {
 	const pGlow = g.hitFlash > 0 ? 20 : 6;
 	ctx.shadowColor = col.g + "0.6)";
 	ctx.shadowBlur = pGlow;
-	ctx.fillStyle = col.p;
+	ctx.fillStyle = keysDown[" "] ? "#dddddd" : col.p;
 	ctx.fillRect(g.px - PAD_W / 2, g.py - g.ph / 2, PAD_W, g.ph);
 	ctx.shadowBlur = 28;
 	ctx.fillStyle = col.g + (g.hitFlash > 0 ? 0.06 : 0.02) + ")";
@@ -4883,18 +4882,29 @@ function draw(ctx, cw, ch) {
 		g.ph + 12,
 	);
 	ctx.shadowBlur = 0;
-	if (g.smashNext || g.curveNext || g.thunderNext) {
+	if (g.smashNext || g.curveNext || g.thunderNext || keysDown[" "]) {
 		const p = 0.2 + 0.2 * Math.sin(g.t * 11);
-		ctx.strokeStyle = col.g + p + ")";
+		ctx.strokeStyle = keysDown[" "] ? "rgba(255,255,255,0.7)" : col.g + p + ")";
 		ctx.lineWidth = 1.5;
 		ctx.shadowColor = col.g + "0.35)";
 		ctx.shadowBlur = 10;
-		ctx.strokeRect(
-			g.px - PAD_W / 2 - 5,
-			g.py - g.ph / 2 - 5,
-			PAD_W + 10,
-			g.ph + 10,
-		);
+		if (keysDown[" "]) {
+			ctx.setLineDash([3, 3]);
+			ctx.strokeRect(
+				g.px - PAD_W / 2 - 4,
+				g.py - g.ph / 2 - 4,
+				PAD_W + 8,
+				g.ph + 8,
+			);
+			ctx.setLineDash([]);
+		} else {
+			ctx.strokeRect(
+				g.px - PAD_W / 2 - 5,
+				g.py - g.ph / 2 - 5,
+				PAD_W + 10,
+				g.ph + 10,
+			);
+		}
 		ctx.shadowBlur = 0;
 	}
 
@@ -6438,10 +6448,10 @@ function doAbility() {
 				g.by = snapY;
 				const offsetDeg = rng(60, 180) * (Math.random() < 0.5 ? -1 : 1);
 				const relaunchAng = backAng + (offsetDeg * Math.PI) / 180;
-				g.bvx = Math.cos(relaunchAng) * curSpd;
+				g.bvx = Math.abs(Math.cos(relaunchAng) * curSpd);
 				g.bvy = Math.sin(relaunchAng) * curSpd;
-				if (Math.abs(g.bvx) < curSpd * 0.35)
-					g.bvx = (g.bvx < 0 ? -1 : 1) * curSpd * 0.35;
+				if (g.bvx < curSpd * 0.35)
+					g.bvx = curSpd * 0.35;
 				g.bvx *= 1.02;
 				g.bvy = clamp(g.bvy + rng(-45, 45), -curSpd * 0.95, curSpd * 0.95);
 				g.abCD = cd;
@@ -6471,8 +6481,8 @@ function doAbility() {
 				addSparks(g, g.px + PAD_W, g.py, 14, 100, [0.8, 0.53, 1]);
 				break;
 			case "frost":
-				g.blizzardT = 2.3;
-				g.freezeT = Math.max(g.freezeT, 0.45);
+				g.blizzardT = 1.5;
+				g.freezeT = Math.max(g.freezeT, 1.2);
 				g.abCD = cd;
 				SFX.abil();
 				tone(1200, 0.08, "sine", 0.04);
