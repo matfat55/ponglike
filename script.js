@@ -1894,8 +1894,8 @@ function resetBall(g, dir) {
 	g.pendingDir = dir;
 	g.pendingVy = rng(-160, 160);
 	const servePause = getServePauseForSpeed(g.rallyBase);
-	g.startPause = servePause;
-	g.startPauseMax = servePause;
+	g.startPause = 1.0;
+	g.startPauseMax = 1.0;
 	g.shUsed = false;
 	g.combo = 0;
 	g.trail = [];
@@ -1950,8 +1950,8 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		bvy: 0,
 		pendingDir: _iDir,
 		pendingVy: _iVy,
-		startPause: initServePause,
-		startPauseMax: initServePause,
+		startPause: 1.0,
+		startPauseMax: 1.0,
 		bs,
 		rallyBase: bs,
 		ballSpd: bs,
@@ -3878,7 +3878,7 @@ function update(dt) {
 	}
 
 	// ═══ ENEMY ABILITY SYSTEM ═══
-	if (g.eAbil.id !== "none") {
+	if (g.eAbil.id !== "none" && (g.freezeT || 0) <= 0) {
 		// Cooldown tick
 		if (g.eAbilCD > 0) g.eAbilCD -= dt;
 		if (g.wStormCD > 0) g.wStormCD -= dt;
@@ -5983,7 +5983,7 @@ function draw(ctx, cw, ch) {
 		ctx.globalAlpha = 1;
 	}
 	// Enemy ability cooldown indicator (right side near enemy)
-	if (g.eAbil.id !== "none") {
+	if (g.eAbil.id !== "none" && (g.freezeT || 0) <= 0) {
 		const eaRdy = g.eAbilCD <= 0 && g.eAbilPhase === "idle";
 		const eaFill = eaRdy ? 1 : Math.max(0, 1 - g.eAbilCD / g.eAbil.cd);
 		ctx.fillStyle = "#151515";
