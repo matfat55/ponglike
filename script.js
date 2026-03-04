@@ -1772,7 +1772,7 @@ function update(dt) {
 			if (g.freeze) g.freezeT = 0.8;
 			// Shockwave
 			if (g.shockwave) {
-				const push = g.by < g.ey ? -60 : 60;
+				const push = g.by > g.ey ? -60 : 60;
 				g.ey += push;
 				g.shockT = 0.3;
 				addSparks(g, EX, g.ey, 8, 100, [1, 0.5, 0.2]);
@@ -2517,7 +2517,7 @@ function update(dt) {
 		// Dash override
 		const curAiSpd = g.dashT > 0 ? g.dashSpd : g.aiSpd;
 		// Dead zone prevents micro-jitter when near target
-		if (Math.abs(diff) > 2) {
+		if (Math.abs(diff) > 2 && g.shockT <= 0) {
 			g.ey += Math.sign(diff) * Math.min(Math.abs(diff), curAiSpd * dt);
 		}
 		// Jitter effect
