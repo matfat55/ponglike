@@ -377,7 +377,7 @@ function update(dt){
   // VoidWalk: paddle teleports toward ball
   if(g.voidWalk&&g.bvx<0){g.py=lerp(g.py,g.by,dt*12);}
   g.py=clamp(g.py,g.ph/2,GH-g.ph/2);
-  const horizSp=focusActive?sp*.55:baseSp*.55;
+  const horizSp=sp*.55;
   if(keysDown['a']||keysDown['arrowleft'])g.px-=horizSp*dt;
   if(keysDown['d']||keysDown['arrowright'])g.px+=horizSp*dt;
   if(!keysDown['a']&&!keysDown['arrowleft']&&!keysDown['d']&&!keysDown['arrowright'])g.px=lerp(g.px,PX_HOME,dt*4);
