@@ -18,6 +18,7 @@ Defined at [`script.js:7-8`](script.js:7):
 | `MAX_WAVE` | 12 | Total waves to beat the game |
 | `TRAIL` | 16 | Max ball trail points |
 | `BASE_SPD` | 340 | Default ball speed |
+| `FOCUS_SPEED_MULT` | 0.4 | Focus mode slows movement to 40% |
 
 ## Coordinate System
 

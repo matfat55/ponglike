@@ -162,10 +162,14 @@ Created by [`newGame()`](script.js:214). This is the largest object in the game.
 
 ## Input Handling
 
-[`script.js:1447-1453`](script.js:1447):
+[`js/input.js`](js/input.js) and [`js/main.js`](js/main.js):
 - `W/S` or `↑/↓` — vertical movement
 - `A/D` or `←/→` — horizontal movement
+- `Shift` or `Space` — **focus mode** (hold to slow movement to 40% for precision)
 - `Q` — activate ability
 - `Enter` — continue/advance after round
 - Click on canvas — same as Enter
 - Arrow keys and space have `preventDefault` to avoid scroll
+
+### Focus Mode
+When holding Shift or Space, player movement speed is reduced to 40% (`FOCUS_SPEED_MULT`), allowing for precision positioning. A dashed border visual indicator appears around the paddle when focus is active.
