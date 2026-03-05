@@ -49,9 +49,17 @@ canvas {
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+	overflow-y: auto;
+	padding: 10px 0;
 	z-index: 50;
 	background: #050508;
 	transition: opacity 0.4s;
+}
+.screen > div {
+	width: min(96vw, 980px);
+	max-height: calc(100vh - 20px);
+	overflow-y: auto;
+	overflow-x: hidden;
 }
 .screen.hidden {
 	opacity: 0;
@@ -61,30 +69,37 @@ canvas {
 	font-size: clamp(48px, 10vw, 90px);
 	letter-spacing: clamp(10px, 3vw, 30px);
 	font-weight: bold;
+	text-align: center;
 	text-shadow:
 		0 0 30px rgba(255, 255, 255, 0.25),
 		0 0 80px rgba(255, 255, 255, 0.08);
 }
 .subtitle {
-	font-size: clamp(12px, 2vw, 18px);
+	font-size: clamp(16px, 2.4vw, 24px);
 	letter-spacing: clamp(8px, 2vw, 22px);
-	color: #887766;
+	color: #c8baa8;
+	text-align: center;
 	text-shadow: 0 0 10px rgba(255, 200, 150, 0.12);
 	margin-top: 2px;
 }
 
 /* Paddle select cards — rough, analog feel */
 .pad-grid {
-	display: flex;
-	gap: 14px;
-	justify-content: center;
-	flex-wrap: wrap;
-	max-width: 1000px;
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-rows: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	width: min(860px, 100%);
+	max-width: 860px;
+	max-height: none;
+	overflow: visible;
+	padding: 2px 6px;
 	margin: 0 auto;
 }
 .pad-card {
-	width: clamp(130px, 18vw, 165px);
-	padding: 22px 12px 16px;
+	width: 100%;
+	min-width: 0;
+	padding: 14px 8px 10px;
 	text-align: center;
 	cursor: pointer;
 	border: 1px solid #1a1a1a;
@@ -138,11 +153,15 @@ canvas {
 	text-shadow: 0 0 12px color-mix(in srgb, var(--pc) 40%, transparent);
 }
 .pad-card .pd {
-	color: #aab;
-	font-size: 9.5px;
-	line-height: 1.7;
-	margin-bottom: 10px;
-	min-height: 36px;
+	color: #d8d8ea;
+	font-size: 11px;
+	line-height: 1.35;
+	margin-bottom: 8px;
+	min-height: 28px;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 .pad-card .ps {
 	border-top: 1px solid #1a1a1a;
@@ -153,7 +172,7 @@ canvas {
 	border-color: color-mix(in srgb, var(--pc) 25%, transparent);
 }
 .pad-card .pa {
-	color: #bbb;
+	color: #dedede;
 	font-size: 10px;
 	letter-spacing: 2px;
 	transition: color 0.2s;
@@ -162,16 +181,16 @@ canvas {
 	color: color-mix(in srgb, var(--pc) 80%, #aaa);
 }
 .pad-card .pi {
-	color: #998;
-	font-size: 8.5px;
+	color: #c8baa8;
+	font-size: 9px;
 	margin-top: 4px;
 }
 .pad-card .pt {
 	color: transparent;
-	font-size: 11px;
-	letter-spacing: 5px;
-	margin-top: 12px;
-	height: 16px;
+	font-size: 12px;
+	letter-spacing: 3px;
+	margin-top: 8px;
+	height: 14px;
 	transition: all 0.25s;
 }
 .pad-card:hover .pt {
@@ -186,11 +205,14 @@ canvas {
 	justify-content: center;
 	flex-wrap: wrap;
 	max-width: 860px;
+	max-height: min(54vh, 460px);
+	overflow: auto;
+	padding: 4px 6px;
 	margin: 0 auto;
 }
 .up-card {
-	width: clamp(175px, 24vw, 230px);
-	padding: 26px 16px 20px;
+	width: clamp(154px, 20vw, 190px);
+	padding: 20px 12px 16px;
 	text-align: center;
 	cursor: pointer;
 	border: 1px solid #1a1a1a;
@@ -218,8 +240,8 @@ canvas {
 	border-color: #333;
 }
 .up-card .ri {
-	font-size: 32px;
-	margin-bottom: 12px;
+	font-size: 27px;
+	margin-bottom: 8px;
 	transition: text-shadow 0.2s;
 }
 .up-card:hover .ri {
@@ -228,7 +250,7 @@ canvas {
 		0 0 40px var(--rc);
 }
 .up-card .cn {
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: 700;
 	letter-spacing: 2px;
 	margin-bottom: 8px;
@@ -238,15 +260,18 @@ canvas {
 	text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 .up-card .cd {
-	color: #ccb;
-	font-size: 11px;
-	line-height: 1.6;
+	color: #efe6d4;
+	font-size: 12px;
+	line-height: 1.4;
 	margin-bottom: 12px;
-	min-height: 24px;
+	display: -webkit-box;
+	-webkit-line-clamp: 4;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 .up-card .cr {
-	font-size: 9px;
-	letter-spacing: 4px;
+	font-size: 12px;
+	letter-spacing: 3px;
 	font-weight: 700;
 	padding: 8px 0 0;
 	border-top: 1px solid #1a1a1a;
@@ -256,8 +281,8 @@ canvas {
 	border-color: color-mix(in srgb, var(--rc) 30%, transparent);
 }
 .up-card .ab-tag {
-	font-size: 8px;
-	letter-spacing: 3px;
+	font-size: 10.5px;
+	letter-spacing: 2px;
 	padding: 4px 10px;
 	border-radius: 2px;
 	display: inline-block;
@@ -282,11 +307,14 @@ canvas {
 	justify-content: center;
 	flex-wrap: wrap;
 	max-width: 1000px;
+	max-height: min(54vh, 470px);
+	overflow: auto;
+	padding: 4px 6px;
 	margin: 0 auto;
 }
 .opp-card {
-	width: clamp(185px, 26vw, 250px);
-	padding: 24px 18px 18px;
+	width: clamp(168px, 21.5vw, 210px);
+	padding: 18px 12px 14px;
 	text-align: center;
 	cursor: pointer;
 	border: 1px solid #1a1a1a;
@@ -316,7 +344,7 @@ canvas {
 	border-color: #2a2a2a;
 }
 .opp-card .opp-diff {
-	font-size: 38px;
+	font-size: 31px;
 	font-weight: 900;
 	letter-spacing: 4px;
 	margin-bottom: 4px;
@@ -329,22 +357,22 @@ canvas {
 		0 0 48px var(--dc);
 }
 .opp-card .opp-name {
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: 700;
 	letter-spacing: 4px;
 	margin-bottom: 3px;
 	color: #ddd;
 }
 .opp-card .opp-tag {
-	font-size: 11px;
-	color: #aaa;
+	font-size: 12px;
+	color: #d5d5df;
 	letter-spacing: 3px;
 	margin-bottom: 6px;
 	min-height: 16px;
 }
 .opp-card .opp-boss {
-	font-size: 9px;
-	letter-spacing: 5px;
+	font-size: 11px;
+	letter-spacing: 4px;
 	padding: 4px 12px;
 	border-radius: 2px;
 	display: inline-block;
@@ -361,8 +389,8 @@ canvas {
 	margin: 10px 0;
 }
 .opp-card .opp-stat {
-	font-size: 8.5px;
-	color: #bbb;
+	font-size: 11px;
+	color: #ddd;
 	letter-spacing: 1.5px;
 	padding: 3px 8px;
 	border: 1px solid #222;
@@ -379,9 +407,9 @@ canvas {
 	border-color: color-mix(in srgb, var(--dc) 25%, transparent);
 }
 .opp-card .opp-reward-label {
-	font-size: 8.5px;
-	letter-spacing: 4px;
-	color: #99a;
+	font-size: 10px;
+	letter-spacing: 3px;
+	color: #c8c8d6;
 	margin-bottom: 10px;
 }
 .opp-card .opp-tiers {
@@ -391,7 +419,7 @@ canvas {
 	justify-content: center;
 }
 .opp-card .opp-tier-pill {
-	font-size: 8px;
+	font-size: 9px;
 	letter-spacing: 1.5px;
 	padding: 4px 8px;
 	border-radius: 2px;
@@ -401,7 +429,7 @@ canvas {
 }
 .opp-card .opp-fight {
 	color: transparent;
-	font-size: 12px;
+	font-size: 15px;
 	letter-spacing: 6px;
 	margin-top: 14px;
 	height: 18px;
@@ -422,13 +450,13 @@ canvas {
 	margin: 6px 0;
 }
 .btn {
-	padding: 16px 44px;
+	padding: 12px 30px;
 	border: 1px solid #555;
 	border-radius: 3px;
 	color: #fff;
 	cursor: pointer;
-	font-size: 15px;
-	letter-spacing: 6px;
+	font-size: 13px;
+	letter-spacing: 4px;
 	font-family: inherit;
 	background: linear-gradient(175deg, #0c0c0c, #060608);
 	transition: all 0.22s ease;
@@ -445,8 +473,8 @@ canvas {
 	border-color: #333;
 	color: #999;
 	font-size: 12px;
-	letter-spacing: 4px;
-	padding: 12px 32px;
+	letter-spacing: 3px;
+	padding: 10px 24px;
 }
 .btn.sec:hover {
 	background: linear-gradient(175deg, #101010, #080808);
@@ -454,15 +482,112 @@ canvas {
 	box-shadow: none;
 }
 .dim {
-	color: #99a;
-	font-size: 10px;
+	color: #c8c8d8;
+	font-size: 13px;
 	letter-spacing: 2px;
-	line-height: 2.2;
+	line-height: 1.9;
 }
 .slabel {
-	color: #aa9988;
-	font-size: 12px;
-	letter-spacing: 8px;
-	margin-bottom: 22px;
+	color: #d7c6b2;
+	font-size: 13px;
+	letter-spacing: 6px;
+	margin-bottom: 14px;
 	text-shadow: 0 0 6px rgba(255, 200, 150, 0.15);
+}
+
+.stat-grid {
+	display: flex;
+	gap: 16px;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.stat-card {
+	width: min(390px, 92vw);
+	text-align: left;
+	padding: 12px 12px 10px;
+	border: 1px solid #2a2a34;
+	border-radius: 3px;
+	background: linear-gradient(175deg, #0b0b10, #07070a);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.stat-head {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 4px;
+	color: #d8d8f2;
+	margin-bottom: 10px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #21212a;
+}
+
+.stat-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: 11px;
+	line-height: 1.4;
+	letter-spacing: 1px;
+	color: #d0d0dc;
+}
+
+.stat-row + .stat-row {
+	margin-top: 3px;
+}
+
+.stat-k {
+	color: #9aa;
+	font-weight: 700;
+}
+
+.stat-v {
+	color: #fff;
+	font-weight: 700;
+}
+
+@media (max-height: 760px) {
+	.title {
+		font-size: clamp(36px, 7vw, 64px);
+	}
+	.card-grid,
+	.opp-grid {
+		max-height: min(48vh, 380px);
+	}
+	.btn {
+		padding: 10px 24px;
+		font-size: 12px;
+	}
+}
+
+@media (max-height: 680px) {
+	.screen {
+		padding: 6px 0;
+	}
+	.title {
+		font-size: clamp(30px, 6vw, 50px);
+		letter-spacing: clamp(8px, 2vw, 18px);
+	}
+	.subtitle {
+		font-size: clamp(12px, 2vw, 18px);
+		letter-spacing: clamp(4px, 1.5vw, 12px);
+	}
+	.card-grid,
+	.opp-grid {
+		max-height: min(42vh, 300px);
+		gap: 10px;
+	}
+	.pad-grid {
+		gap: 8px;
+	}
+	.up-card,
+	.opp-card {
+		width: clamp(142px, 18vw, 176px);
+	}
+	.stat-grid {
+		gap: 10px;
+	}
+	.stat-card {
+		width: min(350px, 92vw);
+	}
 }

@@ -60,8 +60,29 @@
     <div style="font-size:clamp(22px,4vw,32px);letter-spacing:10px;margin-bottom:4px;text-shadow:0 0 18px rgba(255,255,255,0.18);">CHOOSE OPPONENT</div>
     <div id="opp-enemy-warn" style="margin:6px 0;"></div>
     <div style="color:#887766;font-size:9px;letter-spacing:3px;margin:4px 0 18px;">harder fights, better loot</div>
+    <div class="btn sec" id="opp-stats-btn" style="margin:0 auto 14px;max-width:300px;">PLAYER / ENEMY STATS</div>
     <div class="opp-grid" id="opp-grid"></div>
     <div style="color:#554;font-size:7.5px;letter-spacing:2px;margin-top:22px;">RISK MORE &middot; EARN MORE</div>
+  </div>
+</div>
+
+<div id="stat-screen" class="screen hidden">
+  <div style="text-align:center;max-width:920px;padding:0 16px;">
+    <div style="color:#887;font-size:10px;letter-spacing:6px;margin-bottom:6px;">WAVE PREP</div>
+    <div style="font-size:clamp(24px,4vw,34px);letter-spacing:10px;margin-bottom:10px;text-shadow:0 0 18px rgba(255,255,255,0.18);">CURRENT STATS</div>
+    <div id="stat-wave-info" style="color:#bbb;font-size:13px;letter-spacing:2px;margin-bottom:14px;"></div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-head">PLAYER</div>
+        <div id="stat-player"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-head">ENEMY PREVIEW</div>
+        <div id="stat-enemy"></div>
+      </div>
+    </div>
+    <div id="stat-note" style="color:#99a;font-size:12px;letter-spacing:2px;margin-top:14px;"></div>
+    <div class="btn" id="stat-continue" style="margin-top:20px;">BACK TO OPPONENTS</div>
   </div>
 </div>
 
