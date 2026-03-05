@@ -684,6 +684,7 @@ export function resetBall(g, dir) {
 	g.shUsed = false;
 	g.combo = 0;
 	g.trail = [];
+	g.spin = 0;
 	g.curveNext = false;
 	g.smashNext = false;
 	g._pierce = false;
@@ -923,6 +924,11 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		// Spin return
 		spinNext: false,
 		spinCurveT: 0,
+		// Continuous spin (paddle-imparted curve)
+		spin: 0,
+		spinVisAngle: 0,
+		prevEy: GH / 2,
+		eVelY: 0,
 		// Dash
 		dashT: 0,
 		dashSpd: 0,
@@ -1882,6 +1888,9 @@ function update(dt) {
 	// Track paddle velocity for momentum transfer on hit
 	g.pVelY = (g.py - g.prevPy) / Math.max(dt, 0.001);
 	g.prevPy = g.py;
+	// Track enemy paddle velocity for spin on enemy returns
+	g.eVelY = (g.ey - (g.prevEy ?? g.ey)) / Math.max(dt, 0.001);
+	g.prevEy = g.ey;
 	if (g.doppel) {
 		const dpX = PX_HOME + 60;
 		const threatY = pickIncomingThreatY(g, dpX, -1);
@@ -1923,6 +1932,12 @@ function update(dt) {
 					// immediately reverse velocity so ball bounces cleanly
 					g.bvx = Math.abs(g.bvx);
 					g.bvy += clamp(g.pVelY * 0.45, -g.ballSpd * 0.7, g.ballSpd * 0.7);
+					// Impart spin on tunneling hit too
+					{
+						const spdRatio = BASE_SPD / Math.max(g.ballSpd, 1);
+						g.spin = clamp(g.pVelY * 0.55 * spdRatio, -350, 350);
+						g.spinVisAngle = 0;
+					}
 					applyRallyHitSpeed(g);
 				}
 			}
@@ -2049,7 +2064,7 @@ function update(dt) {
 	const cs = Math.hypot(g.bvx, g.bvy);
 	// Only normalize when no ability is actively warping ball physics
 	const skipNorm =
-		g.tsT > 0 || g.eAbilPhase === "strike" || g.pullT > 0 || g.spinCurveT > 0;
+		g.tsT > 0 || g.eAbilPhase === "strike" || g.pullT > 0 || g.spinCurveT > 0 || Math.abs(g.spin) > 5;
 	if (!skipNorm && cs > 1) {
 		const maxSpd = g.ballSpd * 2.8;
 		if (cs > maxSpd) {
@@ -2108,6 +2123,12 @@ function update(dt) {
 			g.bvx = Math.abs(g.bvx);
 			// Transfer paddle velocity to ball (the only thing that changes vertical direction)
 			g.bvy += clamp(g.pVelY * 0.45, -spd * 0.7, spd * 0.7);
+			// Impart spin: paddle velocity creates mid-air curve
+			{
+				const spdRatio = BASE_SPD / Math.max(g.ballSpd, 1);
+				g.spin = clamp(g.pVelY * 0.55 * spdRatio, -350, 350);
+				g.spinVisAngle = 0;
+			}
 			// Edge master upgrade: add extra angle kick at paddle edges
 			if (g.edge) {
 				const rel = clamp((g.by - g.py) / (g.ph / 2), -1, 1);
@@ -2329,6 +2350,12 @@ function update(dt) {
 			g.bvx = -Math.abs(Math.cos(rel * Math.PI * am) * g.ballSpd);
 			g.bvy = Math.sin(rel * Math.PI * am) * g.ballSpd;
 			g.bx = EX - PAD_W / 2 - bs2 - 2;
+			// Enemy imparts spin based on its paddle velocity
+			{
+				const spdRatio = BASE_SPD / Math.max(g.ballSpd, 1);
+				g.spin = clamp(g.eVelY * 0.45 * spdRatio, -300, 300);
+				g.spinVisAngle = 0;
+			}
 			g.combo = 0;
 			applyRallyHitSpeed(g);
 			if (g.chaos) g.bs = Math.min(g.bs * 1.04, 600);
@@ -2959,6 +2986,15 @@ function update(dt) {
 			const ease = g.spinCurveT / 0.7;
 			g.bvy += g._spinDir * 280 * ease * dt;
 			g.bvy = clamp(g.bvy, -g.ballSpd * 1.5, g.ballSpd * 1.5);
+		}
+		// Continuous spin: curve the ball in mid-air, decay over time
+		if (Math.abs(g.spin) > 5) {
+			g.bvy += g.spin * dt;
+			g.bvy = clamp(g.bvy, -g.ballSpd * 1.8, g.ballSpd * 1.8);
+			g.spin *= Math.pow(0.25, dt); // decay ~75% per second
+			g.spinVisAngle += g.spin * dt * 0.012;
+		} else {
+			g.spin = 0;
 		}
 
 		// Pull active - decelerates ball and curves toward enemy
@@ -4935,6 +4971,39 @@ function draw(ctx, cw, ch) {
 		ctx.stroke();
 		ctx.shadowBlur = 0;
 		ctx.globalAlpha = 1;
+	}
+	// Continuous spin: rotating dashed circle around ball
+	if (Math.abs(g.spin) > 5) {
+		const spinStr = Math.min(Math.abs(g.spin) / 200, 1);
+		const dashCount = 8;
+		const gapFrac = 0.35;
+		const segAngle = (Math.PI * 2) / dashCount;
+		const dashLen = segAngle * (1 - gapFrac);
+		const radius = BALL_SZ + 5 + Math.sin(g.t * 7) * 2;
+		ctx.save();
+		ctx.globalAlpha = 0.35 * spinStr;
+		ctx.strokeStyle = g.spin > 0 ? "#f94" : "#4bf";
+		ctx.lineWidth = 1.5;
+		ctx.shadowColor = g.spin > 0 ? "rgba(255,153,68,0.5)" : "rgba(68,187,255,0.5)";
+		ctx.shadowBlur = 6;
+		for (let i = 0; i < dashCount; i++) {
+			const start = g.spinVisAngle + i * segAngle;
+			ctx.beginPath();
+			ctx.arc(g.bx, g.by, radius, start, start + dashLen);
+			ctx.stroke();
+		}
+		// Inner ring, counter-rotating
+		const innerR = BALL_SZ + 1;
+		ctx.globalAlpha = 0.2 * spinStr;
+		ctx.lineWidth = 1;
+		for (let i = 0; i < dashCount; i++) {
+			const start = -g.spinVisAngle * 0.7 + i * segAngle + segAngle * 0.5;
+			ctx.beginPath();
+			ctx.arc(g.bx, g.by, innerR, start, start + dashLen * 0.6);
+			ctx.stroke();
+		}
+		ctx.shadowBlur = 0;
+		ctx.restore();
 	}
 	// Lightning channel: growing energy field around enemy + crackling bolts
 	if (g.eAbilPhase === "channel") {
