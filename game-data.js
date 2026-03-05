@@ -77,8 +77,6 @@ export function pickIncomingThreatY(g, targetX, dir) {
 		}
 	};
 	take(g.bx, g.by, g.bvx, g.bvy);
-	if (g.afterBall && (g.afterBall.zapT || 0) <= 0)
-		take(g.afterBall.x, g.afterBall.y, g.afterBall.vx, g.afterBall.vy);
 	for (let i = 0; i < g.multiBalls.length; i++) {
 		const mb = g.multiBalls[i];
 		if ((mb.zapT || 0) > 0) continue;
@@ -151,17 +149,17 @@ export const DIFF_TIERS = {
 	SSS: ["legendary", "mythical", "secret", "klein"],
 };
 export const DIFF_BALL_MUL = {
-	"F-": 1.44,
-	F: 1.54,
-	E: 1.62,
-	D: 1.72,
-	C: 1.84,
-	B: 1.98,
-	A: 2.12,
-	S: 2.28,
-	SS: 2.45,
-	SSS: 2.62,
-	Ω: 2.75,
+	"F-": 1.18,
+	F: 1.24,
+	E: 1.32,
+	D: 1.42,
+	C: 1.54,
+	B: 1.62,
+	A: 1.78,
+	S: 1.92,
+	SS: 2.08,
+	SSS: 2.22,
+	Ω: 2.38,
 };
 export const BASE_BALL_SPEED_CAP = 760;
 export const FOOL_SEQUENCES = [
@@ -626,14 +624,15 @@ export const PADDLES = [
 // ═══ ENEMIES with difficulty ═══ (multiple per tier for variety)
 export const ENEMIES = [
 	// F-tier
-	{ id: "basic", name: "ROOKIE", tag: "", diff: "F", mod: () => {} },
+	{ id: "basic", name: "ROOKIE", tag: "", diff: "F", mod: (c) => { c.aiSpd *= 1.2; c.aiReact *= 0.6; } },
 	{
 		id: "sleepy",
 		name: "DROWSY",
 		tag: "zz",
 		diff: "F",
 		mod: (c) => {
-			c.aiSpd *= 0.85;
+			c.aiSpd *= 1.05;
+			c.aiReact *= 0.5;
 		},
 	},
 	// E-tier
@@ -643,7 +642,8 @@ export const ENEMIES = [
 		tag: "=",
 		diff: "E",
 		mod: (c) => {
-			c.aiSpd *= 0.9;
+			c.aiSpd *= 1.1;
+			c.aiReact *= 0.65;
 		},
 	},
 	{
@@ -652,7 +652,8 @@ export const ENEMIES = [
 		tag: "[]",
 		diff: "E",
 		mod: (c) => {
-			c.aiSpd *= 0.85;
+			c.aiSpd *= 1.0;
+			c.aiReact *= 0.6;
 		},
 	},
 	// D-tier
@@ -662,7 +663,8 @@ export const ENEMIES = [
 		tag: ">>",
 		diff: "D",
 		mod: (c) => {
-			c.aiSpd *= 1.3;
+			c.aiSpd *= 1.35;
+			c.aiReact *= 0.75;
 		},
 	},
 	{
@@ -671,7 +673,8 @@ export const ENEMIES = [
 		tag: "~~",
 		diff: "D",
 		mod: (c) => {
-			c.aiSpd *= 1.15;
+			c.aiSpd *= 1.2;
+			c.aiReact *= 0.7;
 			c.jitter = true;
 		},
 	},
@@ -697,22 +700,23 @@ export const ENEMIES = [
 	},
 	// B-tier
 	{
-		id: "ghost",
-		name: "PHANTOM",
-		tag: "?",
+		id: "clown",
+		name: "CLOWN",
+		tag: "JOKE",
 		diff: "B",
 		mod: (c) => {
-			c.ghost = true;
+			c.aiSpd *= 1.26;
+			c.aiReact = Math.min(c.aiReact + 0.08, 0.94);
 		},
 	},
 	{
-		id: "blinker",
-		name: "BLINKER",
-		tag: "*?",
+		id: "marionettist",
+		name: "MARIONETTIST",
+		tag: "STRINGS",
 		diff: "B",
 		mod: (c) => {
-			c.ghost = true;
-			c.aiSpd *= 1.1;
+			c.aiSpd *= 1.22;
+			c.aiReact = Math.min(c.aiReact + 0.1, 0.95);
 		},
 	},
 	// A-tier
@@ -752,6 +756,17 @@ export const ENEMIES = [
 		mod: (c) => {
 			c.aiReact = Math.min(c.aiReact + 0.1, 0.96);
 			c.aiSpd *= 1.2;
+		},
+	},
+	{
+		id: "thunder",
+		name: "THUNDERLORD",
+		tag: "⚡",
+		diff: "S",
+		mod: (c) => {
+			c.aiReact = Math.min(c.aiReact + 0.12, 0.97);
+			c.aiSpd *= 1.16;
+			c.trickAng = true;
 		},
 	},
 	// SS-tier
@@ -832,37 +847,13 @@ export const E_ABILS = {
 		cd: 4,
 		dur: 0.5,
 	},
-	spin: {
-		id: "spin",
-		name: "SPIN RETURN",
-		desc: "Charges next return with heavy mid-flight curve",
-		icon: "\u21BB",
-		cd: 6,
-		dur: 0,
-	},
 	blink: {
 		id: "blink",
-		name: "BLINK",
-		desc: "Teleports to ball instantly",
-		icon: "\u2607",
-		cd: 5,
-		dur: 0,
-	},
-	bulk: {
-		id: "bulk",
-		name: "BULK UP",
-		desc: "Paddle grows 1.4x for 2.5s",
-		icon: "\u2B1B",
-		cd: 8,
-		dur: 2.5,
-	},
-	pull: {
-		id: "pull",
-		name: "GRAVITY PULL",
-		desc: "For 2s, drags ball back toward enemy side",
-		icon: "\u2299",
-		cd: 7,
-		dur: 2,
+		name: "PHASE BLINK",
+		desc: "Ball and enemy paddle blink in and out of visibility",
+		icon: "\u29BF",
+		cd: 9,
+		dur: 3.5,
 	},
 	lightning: {
 		id: "lightning",
@@ -871,6 +862,30 @@ export const E_ABILS = {
 		icon: "\u26A1",
 		cd: 10,
 		dur: 1.2,
+	},
+	thunderball: {
+		id: "thunderball",
+		name: "THUNDER PHANTOM",
+		desc: "For a short window, enemy paddle hits launch a bouncing thunder phantom that stuns you on contact",
+		icon: "\u26A1",
+		cd: 8,
+		dur: 2.6,
+	},
+	clowncurse: {
+		id: "clowncurse",
+		name: "CLOWN DERISION",
+		desc: "Reverses your controls briefly and erupts confetti chaos",
+		icon: "\u2726",
+		cd: 16,
+		dur: 2.8,
+	},
+	marionette: {
+		id: "marionette",
+		name: "MARIONETTE THEATRE",
+		desc: "Summons two string-bound puppets that block your shots",
+		icon: "\u2699",
+		cd: 9.6,
+		dur: 4.2,
 	},
 	voidpulse: {
 		id: "voidpulse",
@@ -913,16 +928,17 @@ export const ENEMY_ABIL_MAP = {
 	wide: "none",
 	stubborn: "none",
 	thefool: "none",
-	fast: "dash",
-	jitter: "dash",
-	tricky: "spin",
-	mimic: "pull",
-	ghost: "blink",
-	blinker: "blink",
-	tank: "bulk",
+	fast: "blink",
+	jitter: "blink",
+	tricky: "dash",
+	mimic: "dash",
+	clown: "clowncurse",
+	marionettist: "marionette",
+	tank: "none",
 	jugg: "accel",
-	sniper: "pull",
+	sniper: "dash",
 	hunter: "lightning",
+	thunder: "thunderball",
 	accel: "clone",
 	warden: "lightning",
 	apex: "voidpulse",

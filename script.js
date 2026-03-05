@@ -76,6 +76,26 @@ function getBaseBallSpeedForDiff(diff) {
 	);
 }
 
+function spawnThunderPhantom(g, x, y, speed, target) {
+	const ang = Math.random() * Math.PI * 2;
+	let vx = Math.cos(ang) * speed;
+	if (Math.abs(vx) < speed * 0.35) {
+		vx = (Math.random() > 0.5 ? 1 : -1) * speed * 0.45;
+	}
+	g.bolts.push({
+		x,
+		y,
+		vx,
+		vy: Math.sin(ang) * speed,
+		life: 4,
+		trail: [],
+		zig: 0.1,
+		target,
+		thunderBall: true,
+	});
+	if (g.bolts.length > MAX_BOLTS) g.bolts.splice(0, g.bolts.length - MAX_BOLTS);
+}
+
 const E_UPS = [
 	{
 		id: "ef",
@@ -126,69 +146,130 @@ const E_UPS = [
 
 // ═══ UPGRADE POOL (ability-only) ═══
 const ALL_CARDS = [
-	// UNCOMMON
+	// COMMON
 	{
-		id: "flow",
-		name: "FLOW STATE",
-		desc: "Light auto-assist for fast rallies. Great with Time Warp and Oracle Sight.",
-		tier: "uncommon",
+		id: "common_quickhands",
+		name: "QUICK HANDS",
+		desc: "Ability cooldowns recover 12% faster",
+		tier: "common",
 		type: "ability",
 		fn: (s) => {
-			s.perfectPilot = true;
+			s.cdMul *= 0.88;
 		},
 	},
 	{
+		id: "common_longreach",
+		name: "LONG REACH",
+		desc: "Paddle height +10%",
+		tier: "common",
+		type: "ability",
+		fn: (s) => {
+			s.ph = Math.min(s.ph * 1.1, BASE_PAD_H * 1.6);
+		},
+	},
+	{
+		id: "common_footspeed",
+		name: "FOOTWORK",
+		desc: "Paddle movement speed +8%",
+		tier: "common",
+		type: "ability",
+		fn: (s) => {
+			s.pSpd *= 1.08;
+		},
+	},
+	{
+		id: "common_sidestep",
+		name: "SIDESTEP",
+		desc: "Horizontal movement range +25%",
+		tier: "common",
+		type: "ability",
+		fn: (s) => {
+			s.horizMul *= 1.25;
+		},
+	},
+	{
+		id: "common_edgework",
+		name: "EDGE WORK",
+		desc: "Paddle edge contacts add stronger angle kick",
+		tier: "common",
+		type: "ability",
+		fn: (s) => {
+			s.edge = true;
+		},
+	},
+	// UNCOMMON
+	{
 		id: "bounceback",
 		name: "SNAPBACK",
-		desc: "Ball speeds up an EXTRA 15% each time it bounces off a wall",
+		desc: "Ball speeds up an EXTRA 5% each time it bounces off a wall",
 		tier: "uncommon",
 		type: "ability",
 		fn: (s) => {
 			s.rico = true;
 		},
 	},
-	// RARE
 	{
-		id: "shield",
-		name: "SAFETY NET",
-		desc: "Auto-block your first missed ball each wave",
-		tier: "rare",
+		id: "rally_cooldown",
+		name: "RALLY RHYTHM",
+		desc: "Every rally hit reduces ability cooldown by 0.2s",
+		tier: "uncommon",
 		type: "ability",
 		fn: (s) => {
-			s.shields++;
+			s.cdRally = true;
 		},
 	},
 	{
-		id: "siphon",
-		name: "SIPHON",
-		desc: "Enemy AI gets 5% worse every time you score",
+		id: "midline_focus",
+		name: "MIDLINE FOCUS",
+		desc: "When the ball passes midfield toward you, time slows slightly",
+		tier: "uncommon",
+		type: "ability",
+		fn: (s) => {
+			s.midlineSlow = true;
+		},
+	},
+	{
+		id: "tailwind",
+		name: "TAILWIND",
+		desc: "Ball velocity +15% when flying toward enemy, normal when returning",
 		tier: "rare",
 		type: "ability",
 		fn: (s) => {
-			s.siphon = true;
+			s.tailwind = true;
+		},
+	},
+	{
+		id: "reflex_slow",
+		name: "REFLEX SLOW",
+		desc: "Whenever enemy uses an ability, time slows for 1 second",
+		tier: "uncommon",
+		type: "ability",
+		fn: (s) => {
+			s.reflexSlow = true;
+		},
+	},
+	// RARE
+	{
+		id: "velocitysurge",
+		name: "VELOCITY SURGE",
+		desc: "When ball exceeds 50% base speed, your paddle grows 20% and moves 25% faster",
+		tier: "rare",
+		type: "ability",
+		fn: (s) => {
+			s.velocitySurge = true;
 		},
 	},
 	{
 		id: "oracle_eye",
 		name: "ORACLE SIGHT",
 		desc: "Predictive vision: reveals a projected ball path during rallies.",
-		tier: "rare",
+		tier: "legendary",
 		type: "ability",
 		fn: (s) => {
 			s.oracleSight = true;
 		},
 	},
 	// EPIC
-	{
-		id: "magnet",
-		name: "MAGNETISM",
-		desc: "Ball curves toward your paddle when heading your way",
-		tier: "epic",
-		type: "ability",
-		fn: (s) => {
-			s.magnet = true;
-		},
-	},
 	{
 		id: "vampire",
 		name: "VAMPIRE",
@@ -200,61 +281,31 @@ const ALL_CARDS = [
 		},
 	},
 	{
-		id: "afterimg",
-		name: "AFTERIMAGE",
-		desc: "Each paddle hit spawns a ghost side-ball; reaching goal applies BOOST pressure (no score)",
-		tier: "epic",
-		type: "ability",
-		fn: (s) => {
-			s.afterimage = true;
-		},
-	},
-	{
-		id: "shockwave",
-		name: "TREMOR",
-		desc: "Every hit pushes enemy paddle away from the ball",
-		tier: "epic",
-		type: "ability",
-		fn: (s) => {
-			s.shockwave = true;
-		},
-	},
-	{
 		id: "gravity2",
 		name: "DEAD ZONE",
-		desc: "Ball constantly drifts toward the enemy goal",
-		tier: "epic",
+		desc: "Ball is strongly pulled toward the enemy goal at all times",
+		tier: "uncommon",
 		type: "ability",
 		fn: (s) => {
 			s.singularity = true;
 		},
 	},
 	{
-		id: "voidwalk",
-		name: "VOID WALK",
-		desc: "When ball comes at you, your paddle auto-drifts toward it",
-		tier: "epic",
+		id: "redirect",
+		name: "REDIRECT",
+		desc: "After your return, the ball curves once toward the enemy goal",
+		tier: "uncommon",
 		type: "ability",
 		fn: (s) => {
-			s.voidWalk = true;
+			s.redirect = true;
 		},
 	},
 	// LEGENDARY
 	{
-		id: "freeze",
-		name: "FREEZE FRAME",
-		desc: "Enemy paddle freezes 0.8s every time you hit the ball",
-		tier: "legendary",
-		type: "ability",
-		fn: (s) => {
-			s.freeze = true;
-		},
-	},
-	{
 		id: "homing",
 		name: "HUNTER BALL",
 		desc: "Ball curves toward gaps in enemy defense",
-		tier: "legendary",
+		tier: "epic",
 		type: "ability",
 		fn: (s) => {
 			s.homing = true;
@@ -271,9 +322,19 @@ const ALL_CARDS = [
 		},
 	},
 	{
+		id: "concussion",
+		name: "FREEZE",
+		desc: "Each paddle hit freezes the enemy for 0.8s and slows them for 1s",
+		tier: "uncommon",
+		type: "ability",
+		fn: (s) => {
+			s.concussion = true;
+		},
+	},
+	{
 		id: "aicap",
 		name: "LIMITER",
-		desc: "Enemy AI reaction capped at 50%, top speed throttled — they'll never fully read you",
+		desc: "Enemy AI reaction capped and top speed reduced, but they can still adapt",
 		tier: "legendary",
 		type: "ability",
 		fn: (s) => {
@@ -285,42 +346,138 @@ const ALL_CARDS = [
 		id: "clone",
 		name: "DOPPELGANGER",
 		desc: "A phantom paddle mirrors you on your side",
-		tier: "mythical",
+		tier: "legendary",
 		type: "ability",
 		fn: (s) => {
 			s.doppel = true;
-		},
-	},
-	{
-		id: "sec_berserk",
-		name: "BERSERKER",
-		desc: "Each consecutive hit = +8% ball speed. Resets when enemy scores.",
-		tier: "mythical",
-		type: "ability",
-		fn: (s) => {
-			s.berserker = true;
 		},
 	},
 	// SECRET (combat abilities)
 	{
 		id: "sec_storm",
 		name: "STORM CALLER",
-		desc: "Every hit fires a lightning bolt that stuns enemy paddle.",
+		desc: "Passive lightning rain: ~3 bolts/sec strike randomly near enemy paddle",
 		tier: "secret",
 		type: "ability",
 		fn: (s) => {
 			s.stormCaller = true;
 		},
 	},
+	// NEW EPIC ABILITIES
 	{
-		id: "sec_over",
-		name: "OVERCHARGE",
-		desc: "Every 3rd consecutive hit, ball pierces through enemy paddle.",
+		id: "lockdown",
+		name: "LOCKDOWN",
+		desc: "Enemy cannot move for 2s while any ability or special is active",
+		tier: "epic",
+		type: "ability",
+		fn: (s) => { s.lockdown = true; },
+	},
+	{
+		id: "phantom_thunder",
+		name: "THUNDER PHANTOM",
+		desc: "Every 3 rally hits, fires a phantom thunder ball that stuns enemy (no score)",
+		tier: "rare",
+		type: "ability",
+		fn: (s) => { s.phantomThunder = true; },
+	},
+	{
+		id: "phantom_slow",
+		name: "TWIN GHOSTS",
+		desc: "Every 3 rally hits, spawns 2 green phantom balls that slow enemy (no score)",
+		tier: "rare",
+		type: "ability",
+		fn: (s) => { s.phantomSlow = true; },
+	},
+	{
+		id: "phantom_fire",
+		name: "INFERNO PHANTOM",
+		desc: "Every 3 rally hits, fires a phantom fire ball that burns enemy (stun ticks)",
+		tier: "rare",
+		type: "ability",
+		fn: (s) => { s.phantomFire = true; },
+	},
+	// NEW MYTHICAL
+	{
+		id: "storm_strike",
+		name: "STORM STRIKE",
+		desc: "Every 2nd hit fires a lightning bolt identical to the enemy lightning ability",
+		tier: "legendary",
+		type: "ability",
+		fn: (s) => { s.stormStrike = true; },
+	},
+	{
+		id: "angel_steps",
+		name: "ANGEL STEPS",
+		desc: "When you'd miss, auto-teleport to save the ball. 2 uses per game.",
+		tier: "mythical",
+		type: "ability",
+		fn: (s) => { s.angelSteps = 2; },
+	},
+	// NEW SECRET
+	{
+		id: "sec_paradox_engine",
+		name: "PARADOX ENGINE",
+		desc: "Every 0.5s while ball flies toward enemy, its trajectory shifts randomly",
 		tier: "secret",
 		type: "ability",
-		fn: (s) => {
-			s.overcharge = true;
-		},
+		fn: (s) => { s.paradoxEngine = true; },
+	},
+	{
+		id: "sec_null",
+		name: "NULL",
+		desc: "Disables all enemy special abilities for 40s every 20s",
+		tier: "secret",
+		type: "ability",
+		fn: (s) => { s.nullField = true; },
+	},
+	// NEW ABILITIES
+	{
+		id: "delusio",
+		name: "DELUSIO",
+		desc: "Every hit makes the enemy lose track of the ball for 0.5 seconds",
+		tier: "mythical",
+		type: "ability",
+		fn: (s) => { s.delusio = true; },
+	},
+	{
+		id: "speed_burst",
+		name: "ADRENALINE",
+		desc: "Random chance the ball surges 50% faster for 0.3s when flying toward enemy",
+		tier: "epic",
+		type: "ability",
+		fn: (s) => { s.speedBurst = true; },
+	},
+	{
+		id: "rally_decay",
+		name: "ATTRITION",
+		desc: "The longer the rally, the worse the enemy plays. Scales with combo count",
+		tier: "mythical",
+		type: "ability",
+		fn: (s) => { s.rallyDecay = true; },
+	},
+	{
+		id: "spin_drag",
+		name: "SPIN DRAG",
+		desc: "The more spin you put on a return, the slower the enemy moves (up to 10%)",
+		tier: "rare",
+		type: "ability",
+		fn: (s) => { s.spinDrag = true; },
+	},
+	{
+		id: "straight_shot",
+		name: "STRAIGHT SHOT",
+		desc: "Return the ball straight for a 25% speed boost lasting 1 second",
+		tier: "rare",
+		type: "ability",
+		fn: (s) => { s.straightShot = true; },
+	},
+	{
+		id: "mirage",
+		name: "MIRAGE",
+		desc: "Each hit spawns a bright decoy ball the enemy tracks. It vanishes at midfield, then the real ball is revealed",
+		tier: "mythical",
+		type: "ability",
+		fn: (s) => { s.mirage = true; },
 	},
 	{
 		id: "sec_master",
@@ -331,24 +488,17 @@ const ALL_CARDS = [
 		fn: (s) => {
 			s.masterSkill = true;
 			s.bs *= 1.5;
-			s.freeze = false;
-			s.afterimage = false;
-			s.shockwave = false;
+			s.concussion = false;
 			s.homing = false;
 			s.timewarp = false;
 			s.multicast = false;
 			s.transcend = false;
 			s.doppel = false;
 			s.singularity = false;
-			s.magnet = false;
 			s.dblScore = false;
 			s.vampire = false;
 			s.echoHit = false;
-			s.voidWalk = false;
 			s.stormCaller = false;
-			s.phantomStrike = false;
-			s.berserker = false;
-			s.overcharge = false;
 			s.cdMul = 999;
 		},
 	},
@@ -393,20 +543,25 @@ function pickCards(pool, maxIdx, count, topWeight) {
 }
 
 // Post-wave reward: picks from all cards up to maxTier
-function getCardsForTier(maxTier, count) {
+function getCardsForTier(maxTier, count, ownedAbilityIds = []) {
 	const tierIdx = TIER_ORDER.indexOf(maxTier);
+	const owned = new Set(ownedAbilityIds || []);
 	const pool = ALL_CARDS.filter(
-		(c) => c.type === "ability" && TIER_ORDER.indexOf(c.tier) <= tierIdx,
+		(c) =>
+			c.type === "ability" &&
+			TIER_ORDER.indexOf(c.tier) <= tierIdx &&
+			!owned.has(c.id),
 	);
 	return pickCards(pool, tierIdx, count, 3);
 }
 
 // Mid-wave upgrade: picks from cards allowed at the given enemy difficulty
-function getCardsForDiff(diff, count) {
+function getCardsForDiff(diff, count, ownedAbilityIds = []) {
 	const tiers = DIFF_TIERS[diff] || ["common"];
 	const maxIdx = Math.max(...tiers.map((t) => TIER_ORDER.indexOf(t)));
+	const owned = new Set(ownedAbilityIds || []);
 	const pool = ALL_CARDS.filter(
-		(c) => c.type === "ability" && tiers.includes(c.tier),
+		(c) => c.type === "ability" && tiers.includes(c.tier) && !owned.has(c.id),
 	);
 	return pickCards(pool, maxIdx, count, 4);
 }
@@ -455,6 +610,9 @@ function softenLowRankAi(cfg) {
 	if (idx < 0 || idx >= aIdx) return;
 	cfg.aiSpd = Math.max(90, cfg.aiSpd * 0.72);
 	cfg.aiReact = clamp(cfg.aiReact * 0.68, 0.01, 0.16);
+	if (cfg.diff === "B") {
+		cfg.aiSpd *= 1.25;
+	}
 }
 
 // ═══ GAME STATE ═══
@@ -470,6 +628,7 @@ let curScreen = "menu",
 	g = null,
 	keysDown = {},
 	chosenOppCfg = null;
+
 // Trim sparks to avoid runaway CPU usage
 export function addSparks(g, x, y, n = 8, sp = 120, col = null) {
 	for (let i = 0; i < n; i++) {
@@ -489,6 +648,13 @@ export function addSparks(g, x, y, n = 8, sp = 120, col = null) {
 		g.sparks.splice(0, g.sparks.length - MAX_SPARKS);
 }
 
+function applyRallyHitSpeed(g, mul = 1.025) {
+	g.rallyHits++;
+	g.rallyBase *= mul;
+	g.ballSpd *= mul;
+	if (g.cdRally) g.abCD = Math.max(0, g.abCD - 0.2);
+}
+
 function getServePauseForSpeed(spd) {
 	const minPause = 0.12,
 		maxPause = 0.36;
@@ -502,10 +668,10 @@ function getServePauseForSpeed(spd) {
 }
 
 export function resetBall(g, dir) {
-	const preResetSpd = Math.max(Math.hypot(g.bvx, g.bvy), g.ballSpd || BASE_SPD);
-	g.rallyBase = Math.max(g.bs, preResetSpd * 0.3);
+	// Reset to the base speed from start of wave (no carry-over)
+	g.rallyBase = g.bs;
 	g.rallyHits = 0;
-	g.ballSpd = g.rallyBase;
+	g.ballSpd = g.bs;
 	g.bx = GW / 2;
 	g.by = GH / 2 + rng(-60, 60);
 	g.bvx = 0;
@@ -541,10 +707,7 @@ export function resetBall(g, dir) {
 	if (diffIdx < sIdx) return;
 	// base decay per rank: best (SSS) 0.985, each step down subtracts 0.005
 	const baseDecay = 0.985 - (maxIdx - diffIdx) * 0.005;
-	// only worsen based on how fast the ball is moving relative to base
-	const speedFactor = Math.max(1, preResetSpd / g.bs);
-	// apply the decay exponentiated by speedFactor so faster rallies drain AI more
-	const aiDecay = baseDecay ** speedFactor;
+	const aiDecay = baseDecay;
 	g.aiSpd = Math.max(80, g.aiSpd * aiDecay);
 	g.aiReact = Math.max(0.02, g.aiReact * aiDecay);
 }
@@ -594,17 +757,34 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		shields: sv?.shields ?? 0,
 		shUsed: false,
 		cdMul: sv?.cdMul ?? 1,
+		cdRally: sv?.cdRally ?? false,
+		midlineSlow: sv?.midlineSlow ?? false,
+		tailwind: sv?.tailwind ?? false,
+		reflexSlow: sv?.reflexSlow ?? false,
+		redirect: sv?.redirect ?? false,
+		velocitySurge: sv?.velocitySurge ?? false,
+		concussion: sv?.concussion ?? false,
+		// Velocity surge runtime
+		_surgeActive: false,
+		// Concussion runtime
+		concussStunT: 0,
+		concussSlowT: 0,
+		// Redirect runtime
+		_redirectUsed: false,
+		// Reflex slow runtime
+		_reflexSlowT: 0,
+		// Center combo system
+		centerCombo: 0,
+		centerComboFlash: 0,
+		centerComboPop: "",
+		centerComboPopT: 0,
 		// Abilities (passive)
 		edge: sv?.edge ?? false,
 		rico: sv?.rico ?? false,
-		magnet: sv?.magnet ?? false,
 		dblScore: false,
 		vampire: sv?.vampire ?? false,
 		oracleSight: sv?.oracleSight ?? false,
 		perfectPilot: sv?.perfectPilot ?? false,
-		freeze: sv?.freeze ?? false,
-		afterimage: sv?.afterimage ?? false,
-		shockwave: sv?.shockwave ?? false,
 		homing: sv?.homing ?? false,
 		timewarp: sv?.timewarp ?? false,
 		multicast: sv?.multicast ?? false,
@@ -615,15 +795,42 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		aiCap: sv?.aiCap ?? false,
 		triScore: false,
 		echoHit: false,
-		voidWalk: sv?.voidWalk ?? false,
 		// New secret combat abilities
 		stormCaller: sv?.stormCaller ?? false,
 		phantomStrike: false,
 		mirrorMatch: false,
-		berserker: sv?.berserker ?? false,
-		overcharge: sv?.overcharge ?? false,
-		berserkerStacks: 0,
-		_berserkerBase: sv?.bs ?? BASE_SPD,
+		// New abilities
+		lockdown: sv?.lockdown ?? false,
+		phantomThunder: sv?.phantomThunder ?? false,
+		phantomSlow: sv?.phantomSlow ?? false,
+		phantomFire: sv?.phantomFire ?? false,
+		stormStrike: sv?.stormStrike ?? false,
+		_stormStrikeCount: 0,
+		angelSteps: sv?.angelSteps ?? 0,
+		paradoxEngine: sv?.paradoxEngine ?? false,
+		_paradoxTick: 0,
+		nullField: sv?.nullField ?? false,
+		_nullActiveT: 40,
+		_nullCooldownT: 0,
+		// New abilities
+		delusio: sv?.delusio ?? false,
+		_delusioT: 0,
+		speedBurst: sv?.speedBurst ?? false,
+		_speedBurstT: 0,
+		rallyDecay: sv?.rallyDecay ?? false,
+		spinDrag: sv?.spinDrag ?? false,
+		_spinDragMul: 1,
+		straightShot: sv?.straightShot ?? false,
+		_straightShotT: 0,
+		mirage: sv?.mirage ?? false,
+		_mirageDecoy: null,
+		// Lockdown runtime
+		lockdownFreezeT: 0,
+		// Fire phantom burn tracking
+		_burnT: 0,
+		_burnTickT: 0,
+		// Angel Steps flash
+		_angelFlashT: 0,
 		mirrorBuf: [],
 		doppelBuf: [],
 		doppelY: GH / 2,
@@ -639,8 +846,6 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		shrinkT: 0,
 		smashNext: false,
 		freezeT: 0,
-		afterBall: null,
-		shockT: 0,
 		// New paddle ability states
 		foresightT: 0, // Oracle: future foresight window
 		phaseNext: false, // Phantom: next hit pierces
@@ -721,6 +926,8 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		// Dash
 		dashT: 0,
 		dashSpd: 0,
+		// Blink
+		blinkT: 0,
 		overdriveT: 0,
 		cloneT: 0,
 		cloneY: 0,
@@ -736,6 +943,7 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		scorePops: [],
 		abilFlash: 0,
 		lastCombo: 0,
+		ownedAbilityIds: new Set(sv?.ownedAbilityIds || []),
 		rankSpdMul,
 		goalLockT: 0,
 		winScore: PTS_WIN,
@@ -847,13 +1055,13 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 	}
 	// Apply AI cap (secret)
 	if (ng.aiCap) {
-		ng.aiReact = Math.min(ng.aiReact, 0.5);
-		ng.aiSpd *= 0.6;
+		ng.aiReact = Math.min(ng.aiReact, 0.72);
+		ng.aiSpd *= 0.9;
 	}
 	if (eUps) for (const eu of eUps) eu.fn(ng);
 	if (ng.aiCap) {
-		ng.aiReact = Math.min(ng.aiReact, 0.5);
-		ng.aiSpd = Math.min(ng.aiSpd, 250);
+		ng.aiReact = Math.min(ng.aiReact, 0.72);
+		ng.aiSpd = Math.min(ng.aiSpd, 380);
 	}
 	return ng;
 }
@@ -865,20 +1073,23 @@ function saveGame(g) {
 		ph: g.ph,
 		pSpd: g.pSpd,
 		cdMul: g.cdMul,
+		cdRally: g.cdRally,
+		midlineSlow: g.midlineSlow,
+		tailwind: g.tailwind,
+		reflexSlow: g.reflexSlow,
+		redirect: g.redirect,
+		velocitySurge: g.velocitySurge,
+		concussion: g.concussion,
 		edge: g.edge,
 		rico: g.rico,
 		shields: g.shields,
 		lives: g.lives,
 		aiMod: g.aiMod,
 		horizMul: g.horizMul,
-		magnet: g.magnet,
 		dblScore: g.dblScore,
 		vampire: g.vampire,
 		oracleSight: g.oracleSight,
 		perfectPilot: g.perfectPilot,
-		freeze: g.freeze,
-		afterimage: g.afterimage,
-		shockwave: g.shockwave,
 		homing: g.homing,
 		timewarp: g.timewarp,
 		multicast: g.multicast,
@@ -888,14 +1099,26 @@ function saveGame(g) {
 		aiCap: g.aiCap,
 		triScore: g.triScore,
 		echoHit: g.echoHit,
-		voidWalk: g.voidWalk,
 		stormCaller: g.stormCaller,
 		phantomStrike: g.phantomStrike,
 		mirrorMatch: g.mirrorMatch,
-		berserker: g.berserker,
-		overcharge: g.overcharge,
+		lockdown: g.lockdown,
+		phantomThunder: g.phantomThunder,
+		phantomSlow: g.phantomSlow,
+		phantomFire: g.phantomFire,
+		stormStrike: g.stormStrike,
+		angelSteps: g.angelSteps,
+		paradoxEngine: g.paradoxEngine,
+		nullField: g.nullField,
+		delusio: g.delusio,
+		speedBurst: g.speedBurst,
+		rallyDecay: g.rallyDecay,
+		spinDrag: g.spinDrag,
+		straightShot: g.straightShot,
+		mirage: g.mirage,
 		masterSkill: g.masterSkill,
 		siphon: g.siphon,
+		ownedAbilityIds: Array.from(g.ownedAbilityIds || []),
 	};
 }
 
@@ -1021,7 +1244,6 @@ function update(dt) {
 	if (g.pStunT > 0) {
 		g.pStunT -= dt;
 	}
-	if (g.shockT > 0) g.shockT -= dt;
 	if (g.ctrlInvertT > 0) g.ctrlInvertT -= dt;
 	if (g.ballHideT > 0) g.ballHideT -= dt;
 	if (g.foolDistortT > 0) g.foolDistortT -= dt;
@@ -1116,7 +1338,6 @@ function update(dt) {
 		if (
 			g.foolPointGate &&
 			g.startPause > 0 &&
-			!g.afterBall &&
 			g.multiBalls.length === 0
 		)
 			g.foolPointGate = false;
@@ -1375,7 +1596,7 @@ function update(dt) {
 			if (ratio > 3) g.bvx += Math.sign(g.bvx) * 200 * dt;
 		}
 	}
-	// Lightning bolts (Storm): move toward enemy, STUN on contact (never score directly)
+	// Lightning/thunder projectiles: bounce and STUN on contact (never score directly)
 	for (let i = g.bolts.length - 1; i >= 0; i--) {
 		const b = g.bolts[i];
 		b.life -= dt;
@@ -1399,6 +1620,7 @@ function update(dt) {
 		}
 		// hit player paddle? (warden storm or enemy bolts directed left)
 		if (
+			(!b.target || b.target === "player") &&
 			b.vx < 0 &&
 			b.x < PX_HOME + PAD_W / 2 + 4 &&
 			b.x > PX_HOME - PAD_W / 2 - 4 &&
@@ -1418,6 +1640,7 @@ function update(dt) {
 		}
 		// Hit enemy paddle = STUN it (freeze for 0.7s), not score
 		if (
+			(!b.target || b.target === "enemy") &&
 			b.x > EX - PAD_W / 2 - 4 &&
 			b.x < EX + PAD_W / 2 + 4 &&
 			b.y > g.ey - g.eH / 2 - 4 &&
@@ -1453,8 +1676,6 @@ function update(dt) {
 		}
 		if (delayed) g._mirrorY = delayed.y;
 	}
-	// Berserker: reset stacks when enemy scores (handled in scoring section)
-
 	const rallyMul = g.ballSpd / (g.rallyBase || 1);
 	g.ballSpd = Math.min(g.ballSpd, MAX_BALL_SPD);
 	g.rallyBase = Math.min(g.rallyBase, MAX_BALL_SPD);
@@ -1465,8 +1686,160 @@ function update(dt) {
 			twMul = lerp(1.15, 0.7, nx); // speeds near player, slows near enemy
 		else twMul = lerp(0.75, 1.2, nx);
 	}
+	if (g.midlineSlow && g.bvx < 0 && g.bx > GW * 0.42 && g.bx < GW * 0.58) {
+		twMul *= 0.82;
+	}
+	// Tailwind: 15% speed boost when ball heading toward enemy
+	if (g.tailwind && g.bvx > 0) twMul *= 1.15;
+	// Reflex Slow: time slow when enemy uses ability
+	if (g._reflexSlowT > 0) {
+		g._reflexSlowT -= dt;
+		twMul *= 0.6;
+	}
 	// Blizzard: slow ball in enemy half
 	if (g.blizzardT > 0 && g.bx > GW * 0.4) twMul *= 0.3;
+
+	// Velocity Surge: when ball exceeds 50% of base speed, buff paddle
+	if (g.velocitySurge) {
+		const curBallSpd = Math.hypot(g.bvx, g.bvy);
+		const surgeThresh = g.bs * 1.5;
+		if (curBallSpd > surgeThresh && !g._surgeActive) {
+			g._surgeActive = true;
+			g.ph *= 1.2;
+			g.pSpd *= 1.25;
+			addSparks(g, g.px, g.py, 12, 100, [1, 0.8, 0.2]);
+		} else if (curBallSpd <= surgeThresh && g._surgeActive) {
+			g._surgeActive = false;
+			g.ph /= 1.2;
+			g.pSpd /= 1.25;
+		}
+	}
+	// Concussion: decrement timers
+	if (g.concussStunT > 0) g.concussStunT -= dt;
+	if (g.concussSlowT > 0) g.concussSlowT -= dt;
+	// Center combo flash decay
+	if (g.centerComboFlash > 0) g.centerComboFlash -= dt;
+	if (g.centerComboPopT > 0) g.centerComboPopT -= dt;
+
+	// ═══ STORM CALLER: passive lightning rain ~3 bolts/sec near enemy ═══
+	if (g.stormCaller && g.startPause <= 0) {
+		g._stormRainT = (g._stormRainT || 0) - dt;
+		if (g._stormRainT <= 0) {
+			g._stormRainT = 0.25 + Math.random() * 0.2; // ~3/sec with jitter
+			const ty = g.ey + rng(-g.eH * 1.5, g.eH * 1.5);
+			const bSpd = g.ballSpd * 1.3;
+			g.bolts.push({
+				x: EX - 80 - Math.random() * 60, y: ty,
+				vx: bSpd * 0.8, vy: rng(-40, 40),
+				life: 2.5, trail: [], zig: 0.15, target: "enemy",
+			});
+			if (g.bolts.length > MAX_BOLTS) g.bolts.splice(0, g.bolts.length - MAX_BOLTS);
+			addSparks(g, EX - 80, ty, 4, 50, [1, 0.93, 0.27]);
+		}
+	}
+
+	// ═══ PARADOX ENGINE: every 0.5s redirect ball toward enemy ═══
+	if (g.paradoxEngine && g.bvx > 0 && g.startPause <= 0) {
+		g._paradoxTick -= dt;
+		if (g._paradoxTick <= 0) {
+			g._paradoxTick = 0.5;
+			const spd = Math.hypot(g.bvx, g.bvy);
+			const ang = (Math.random() - 0.5) * 1.2; // ±0.6 radians
+			g.bvx = Math.abs(Math.cos(ang)) * spd;
+			g.bvy = Math.sin(ang) * spd;
+		}
+	}
+
+	// ═══ LOCKDOWN: freeze enemy while their ability is active ═══
+	if (g.lockdown && g.eAbilActive > 0) {
+		g.lockdownFreezeT = 2.0;
+	}
+	if (g.lockdownFreezeT > 0) g.lockdownFreezeT -= dt;
+
+	// ═══ NULL: disable enemy abilities in cycles ═══
+	if (g.nullField) {
+		if (g._nullActiveT > 0) {
+			g._nullActiveT -= dt;
+			// While active the ability system is suppressed (handled in ability section)
+			if (g._nullActiveT <= 0) g._nullCooldownT = 20;
+		} else if (g._nullCooldownT > 0) {
+			g._nullCooldownT -= dt;
+			if (g._nullCooldownT <= 0) g._nullActiveT = 40;
+		}
+	}
+
+	// ═══ FIRE PHANTOM BURN TICKS ═══
+	if (g._burnT > 0) {
+		g._burnT -= dt;
+		g._burnTickT -= dt;
+		if (g._burnTickT <= 0) {
+			g._burnTickT = 0.7;
+			g.freezeT = Math.max(g.freezeT, 0.3);
+			addSparks(g, EX, g.ey, 6, 60, [1, 0.4, 0.1]);
+			tone(250, 0.04, "sawtooth", 0.03);
+		}
+	}
+	// Angel Steps flash decay
+	if (g._angelFlashT > 0) g._angelFlashT -= dt;
+
+	// ═══ DELUSIO: enemy tracks random position while active ═══
+	if (g._delusioT > 0) g._delusioT -= dt;
+
+	// ═══ SPEED BURST (ADRENALINE): random chance when ball heading to enemy ═══
+	if (g.speedBurst && g.bvx > 0 && g.startPause <= 0 && g._speedBurstT <= 0) {
+		if (Math.random() < dt * 1.5) { // ~1.5 chances/sec
+			g._speedBurstT = 0.3;
+			const boost = 1.5;
+			g.bvx *= boost;
+			g.bvy *= boost;
+			addSparks(g, g.bx, g.by, 6, 80, [1, 0.7, 0.2]);
+			tone(350, 0.04, "sine", 0.03);
+		}
+	}
+	if (g._speedBurstT > 0) {
+		g._speedBurstT -= dt;
+		if (g._speedBurstT <= 0) {
+			// Restore speed to normal
+			const curSpd = Math.hypot(g.bvx, g.bvy);
+			if (curSpd > g.ballSpd * 1.1) {
+				const r = g.ballSpd / curSpd;
+				g.bvx *= r;
+				g.bvy *= r;
+			}
+		}
+	}
+
+	// ═══ STRAIGHT SHOT timer decay ═══
+	if (g._straightShotT > 0) {
+		g._straightShotT -= dt;
+		if (g._straightShotT <= 0) {
+			// Normalize speed back down
+			const curSpd = Math.hypot(g.bvx, g.bvy);
+			if (curSpd > g.ballSpd * 1.1) {
+				const r = g.ballSpd / curSpd;
+				g.bvx *= r;
+				g.bvy *= r;
+			}
+		}
+	}
+
+	// ═══ MIRAGE DECOY movement ═══
+	if (g._mirageDecoy && g._mirageDecoy.active) {
+		const dc = g._mirageDecoy;
+		dc.life -= dt;
+		dc.x += dc.vx * dt;
+		dc.y += dc.vy * dt;
+		dc.trail.push({ x: dc.x, y: dc.y });
+		if (dc.trail.length > 8) dc.trail.shift();
+		// Bounce off top/bottom
+		if (dc.y < BALL_SZ / 2) { dc.y = BALL_SZ / 2; dc.vy = Math.abs(dc.vy); }
+		if (dc.y > GH - BALL_SZ / 2) { dc.y = GH - BALL_SZ / 2; dc.vy = -Math.abs(dc.vy); }
+		// Vanish at midfield
+		if (dc.x > GW / 2 || dc.life <= 0) {
+			dc.active = false;
+			addSparks(g, dc.x, dc.y, 8, 60, [1, 1, 0.5]);
+		}
+	}
 
 	// Player - compute velocity from last frame position
 	let sp = g.pSpd;
@@ -1485,10 +1858,6 @@ function update(dt) {
 	} else if (g.pStunT <= 0) {
 		if (keysDown["w"] || keysDown["arrowup"]) g.py -= sp * dt * invert;
 		if (keysDown["s"] || keysDown["arrowdown"]) g.py += sp * dt * invert;
-	}
-	// VoidWalk: paddle teleports toward ball
-	if (g.voidWalk && g.bvx < 0) {
-		g.py = lerp(g.py, g.by, dt * 12);
 	}
 	g.py = clamp(g.py, g.ph / 2, GH - g.ph / 2);
 	if (g.perfectPilot) {
@@ -1554,6 +1923,7 @@ function update(dt) {
 					// immediately reverse velocity so ball bounces cleanly
 					g.bvx = Math.abs(g.bvx);
 					g.bvy += clamp(g.pVelY * 0.45, -g.ballSpd * 0.7, g.ballSpd * 0.7);
+					applyRallyHitSpeed(g);
 				}
 			}
 		} else if (g.bvx > 0) {
@@ -1568,24 +1938,39 @@ function update(dt) {
 					g.by = yHit;
 					// immediately reverse velocity so ball bounces cleanly
 					g.bvx = -Math.abs(g.bvx);
+					applyRallyHitSpeed(g);
 				}
 			}
 		}
 
 		if (g.curveNext && g.bvx > 0) {
-			g.bvy += Math.sign(g.bvy || 1) * 320 * dt;
-			g.bvy = clamp(g.bvy, -g.ballSpd * 1.8, g.ballSpd * 1.8);
+			const curveTarget = Math.sign(g.bvy || 1) * g.ballSpd * 1.8;
+			g.bvy = lerp(g.bvy, curveTarget, dt * 3.5);
 		}
-		if (g.magnet && g.bvx < 0) g.bvy += Math.sign(g.py - g.by) * 45 * dt;
-		// Homing: drift toward gap in enemy defense
+		// Homing: smooth drift toward gap in enemy defense
 		if (g.homing && g.bvx > 0 && g.bx > GW * 0.4) {
 			const gap = g.by < g.ey ? g.ey - g.eH / 2 - 20 : g.ey + g.eH / 2 + 20;
-			g.bvy += Math.sign(gap - g.by) * 60 * dt;
+			const curSpd = Math.hypot(g.bvx, g.bvy);
+			const speedScale = clamp(curSpd / BASE_SPD, 0.85, 2.8);
+			const laneProg = clamp((g.bx - GW * 0.4) / (GW * 0.6), 0, 1);
+			const laneScale = 0.9 + laneProg * 0.9;
+			const homingForce = 120 * speedScale * laneScale;
+			const targetVy = Math.sign(gap - g.by) * homingForce;
+			g.bvy = lerp(g.bvy, g.bvy + targetVy * dt, 0.92);
 		}
-		// Singularity: pull toward enemy goal
+		// Dead Zone: strong pull toward enemy goal
 		if (g.singularity && g.bvx > 0) {
-			g.bvx += 50 * dt;
-			g.bvy *= 0.998;
+			g.bvx += 120 * dt;
+			g.bvy *= 0.995;
+		}
+		// Redirect: gradual curve toward enemy goal after player return
+		if (g.redirect && g.bvx > 0 && !g._redirectUsed && g.bx > GW * 0.25 && g.bx < GW * 0.6) {
+			const goalY = GH / 2;
+			const curveStr = 160;
+			g.bvy = lerp(g.bvy, g.bvy + Math.sign(goalY - g.by) * curveStr * dt, 0.85);
+		}
+		if (g.redirect && g.bvx > 0 && !g._redirectUsed && g.bx >= GW * 0.6) {
+			g._redirectUsed = true;
 		}
 	}
 
@@ -1746,9 +2131,7 @@ function update(dt) {
 			g.bx = pR + bs2 + 1;
 			const finalAng = Math.atan2(g.bvy, g.bvx); // used by afterimage
 			g.combo++;
-			g.rallyHits++;
-			g.rallyBase *= 1.04;
-			g.ballSpd *= 1.04;
+			applyRallyHitSpeed(g);
 			g.flash = Math.max(g.flash, 0.18);
 			g.hitFlash = 1;
 			g.shake = Math.max(g.shake, 0.03);
@@ -1768,27 +2151,70 @@ function update(dt) {
 				g.shake = Math.max(g.shake, 0.1);
 				g.chromaShift = Math.max(g.chromaShift, 0.3);
 			}
-			// Freeze
-			if (g.freeze) g.freezeT = 0.8;
-			// Shockwave
-			if (g.shockwave) {
-				const push = g.by > g.ey ? -60 : 60;
-				g.ey += push;
-				g.shockT = 0.3;
-				addSparks(g, EX, g.ey, 8, 100, [1, 0.5, 0.2]);
+			// Freeze (was Concussion): stun enemy 0.8s + slow 1s on every hit
+			if (g.concussion) {
+				g.concussStunT = 0.8;
+				g.concussSlowT = 1.0;
+				g.freezeT = Math.max(g.freezeT, 0.8);
+				addSparks(g, EX, g.ey, 10, 80, [1, 0.9, 0.3]);
+				tone(180, 0.08, "sawtooth", 0.04);
 			}
-			// Afterimage
-			if (g.afterimage) {
-				const aSpd = spd * 0.85;
-				const aAng = finalAng + (Math.random() - 0.5) * 0.3;
-				g.afterBall = {
-					x: g.bx,
-					y: g.by,
+			// Redirect: after return, ball curves once toward enemy goal
+			if (g.redirect) {
+				g._redirectUsed = false; // arm the redirect for this return
+			}
+			// Delusio: enemy loses track of ball for 0.5s
+			if (g.delusio) {
+				g._delusioT = 0.5;
+			}
+			// Spin Drag: measure spin ratio, apply as enemy slow
+			if (g.spinDrag) {
+				const spinRatio = Math.abs(g.bvy) / Math.max(Math.hypot(g.bvx, g.bvy), 1);
+				g._spinDragMul = 1 - spinRatio * 0.1; // up to 10% slower
+			}
+			// Straight Shot: if return is mostly horizontal, +25% speed for 1s
+			if (g.straightShot) {
+				const straightness = Math.abs(g.bvx) / Math.max(Math.hypot(g.bvx, g.bvy), 1);
+				if (straightness > 0.85) {
+					g._straightShotT = 1.0;
+					const boost = 1.25;
+					g.bvx *= boost;
+					g.bvy *= boost;
+					g.ballSpd *= boost;
+					addSparks(g, g.bx, g.by, 10, 100, [0.5, 0.9, 1]);
+					tone(400, 0.06, "sine", 0.04);
+				}
+			}
+			// Mirage: spawn decoy ball that AI tracks
+			if (g.mirage) {
+				const aSpd = g.ballSpd * 1.1;
+				const aAng = Math.atan2(g.bvy, g.bvx) + (Math.random() - 0.5) * 0.4;
+				g._mirageDecoy = {
+					x: g.bx, y: g.by,
 					vx: Math.abs(Math.cos(aAng) * aSpd),
 					vy: Math.sin(aAng) * aSpd,
-					life: 2.5,
-					trail: [],
+					life: 3.0, trail: [], active: true,
 				};
+			}
+			// Center combo: detect center hit
+			{
+				const relHit = Math.abs(g.by - g.py) / (g.ph / 2);
+				if (relHit < 0.25) {
+					g.centerCombo++;
+					g.centerComboFlash = 0.4;
+					const label = g.centerCombo >= 10 ? "PERFECT " + g.centerCombo + "x"
+						: g.centerCombo >= 5 ? "GREAT " + g.centerCombo + "x"
+						: g.centerCombo >= 3 ? "NICE " + g.centerCombo + "x" : "";
+					if (label) {
+						g.centerComboPop = label;
+						g.centerComboPopT = 1.0;
+						// Bonus: each center combo past 3 gives tiny speed buff
+						g.ballSpd *= 1.01;
+						addSparks(g, g.px + PAD_W / 2, g.by, 6 + g.centerCombo, 80, [1, 1, 0.5]);
+					}
+				} else {
+					g.centerCombo = 0;
+				}
 			}
 			// Thunder: spawn 1 stun bolt on hit (stuns enemy paddle, doesn't score)
 			if (g.thunderNext) {
@@ -1802,6 +2228,7 @@ function update(dt) {
 					life: 4,
 					trail: [],
 					zig: 0.12,
+					target: "enemy",
 				});
 				if (g.bolts.length > MAX_BOLTS)
 					g.bolts.splice(0, g.bolts.length - MAX_BOLTS);
@@ -1813,43 +2240,66 @@ function update(dt) {
 				tone(100, 0.1, "sawtooth", 0.06);
 				tone(250, 0.06, "square", 0.04, 30);
 			}
-			// Storm Caller (secret): 1 stun bolt on every hit
-			if (g.stormCaller) {
-				const bSpd = g.ballSpd * 1.4;
-				g.bolts.push({
-					x: g.bx,
-					y: g.by,
-					vx: bSpd,
-					vy: rng(-120, 120),
-					life: 4,
-					trail: [],
-					zig: 0.12,
-				});
-				if (g.bolts.length > MAX_BOLTS)
-					g.bolts.splice(0, g.bolts.length - MAX_BOLTS);
-				addSparks(g, g.bx, g.by, 6, 80, [1, 0.93, 0.27]);
-			}
-			// Phantom Strike removed from upgrade pool
-			// Berserker (secret): each consecutive hit makes ball faster
-			if (g.berserker) {
-				g.berserkerStacks = (g.berserkerStacks || 0) + 1;
-				g.bs = g._berserkerBase * (1 + g.berserkerStacks * 0.08);
-				g.ballSpd *= 1.08; // Just multiply directly? 
-				// Actually wait. Berserker adds to base speed. Let's just multiply base.
-			}
-			// Overcharge (secret): every 3rd consecutive hit, ball pierces
-			if (g.overcharge) {
-				if (g.combo > 0 && g.combo % 3 === 0) {
-					piercing = true;
-					g._pierce = true;
-					g.shake = 0.1;
-					g.chromaShift = 0.5;
-					g.flash = 0.2;
-					g.flashCol = [0.8, 0.4, 1];
-					addSparks(g, g.bx, g.by, 16, 140, [0.8, 0.4, 1]);
-					tone(600, 0.06, "square", 0.04);
-					tone(900, 0.08, "square", 0.03, 30);
+			// Storm Strike: every 2nd player hit, lightning bolt
+			if (g.stormStrike) {
+				g._stormStrikeCount = (g._stormStrikeCount || 0) + 1;
+				if (g._stormStrikeCount % 2 === 0) {
+					const bSpd = g.ballSpd * 1.6;
+					g.bolts.push({
+						x: g.bx, y: g.by,
+						vx: bSpd, vy: rng(-80, 80),
+						life: 4, trail: [], zig: 0.1, target: "enemy",
+					});
+					if (g.bolts.length > MAX_BOLTS) g.bolts.splice(0, g.bolts.length - MAX_BOLTS);
+					g.shake = Math.max(g.shake, 0.07);
+					g.flash = Math.max(g.flash, 0.12);
+					g.flashCol = [1, 0.93, 0.27];
+					addSparks(g, g.bx, g.by, 10, 110, [1, 0.93, 0.27]);
+					tone(120, 0.08, "sawtooth", 0.05);
 				}
+			}
+			// Phantom Thunder Ball: spawns stun-phantom every 3 rallies
+			if (g.phantomThunder && g.rallyHits > 0 && g.rallyHits % 3 === 0) {
+				const aSpd = g.ballSpd * 0.8;
+				const aAng = (Math.random() - 0.5) * 1.2;
+				g.multiBalls.push({
+					x: g.bx, y: g.by,
+					vx: Math.abs(Math.cos(aAng) * aSpd),
+					vy: Math.sin(aAng) * aSpd,
+					life: 3.5, trail: [],
+					owner: "player", phantom: true, pType: "thunder",
+				});
+				addSparks(g, g.bx, g.by, 8, 90, [1, 0.93, 0.27]);
+				tone(200, 0.06, "square", 0.03);
+			}
+			// Twin Phantom Slow Balls: 2 green slow-phantoms every 3 rallies
+			if (g.phantomSlow && g.rallyHits > 0 && g.rallyHits % 3 === 0) {
+				for (let si = 0; si < 2; si++) {
+					const aSpd = g.ballSpd * 0.65;
+					const aAng = (si === 0 ? 0.4 : -0.4) + (Math.random() - 0.5) * 0.3;
+					g.multiBalls.push({
+						x: g.bx, y: g.by,
+						vx: Math.abs(Math.cos(aAng) * aSpd),
+						vy: Math.sin(aAng) * aSpd,
+						life: 3.5, trail: [],
+						owner: "player", phantom: true, pType: "slow",
+					});
+				}
+				addSparks(g, g.bx, g.by, 8, 80, [0.3, 1, 0.4]);
+			}
+			// Fire Phantom Ball: 1 fire-phantom every 3 rallies, sets burn on enemy hit
+			if (g.phantomFire && g.rallyHits > 0 && g.rallyHits % 3 === 0) {
+				const aSpd = g.ballSpd * 0.75;
+				const aAng = (Math.random() - 0.5) * 0.8;
+				g.multiBalls.push({
+					x: g.bx, y: g.by,
+					vx: Math.abs(Math.cos(aAng) * aSpd),
+					vy: Math.sin(aAng) * aSpd,
+					life: 3.5, trail: [],
+					owner: "player", phantom: true, pType: "fire",
+				});
+				addSparks(g, g.bx, g.by, 8, 90, [1, 0.5, 0.15]);
+				tone(150, 0.06, "sawtooth", 0.04);
 			}
 			// Set piercing flag on ball (persists until first enemy blocker contact)
 			if (piercing) g._pierce = true;
@@ -1880,9 +2330,7 @@ function update(dt) {
 			g.bvy = Math.sin(rel * Math.PI * am) * g.ballSpd;
 			g.bx = EX - PAD_W / 2 - bs2 - 2;
 			g.combo = 0;
-			g.rallyHits++;
-			g.rallyBase *= 1.04;
-			g.ballSpd *= 1.04;
+			applyRallyHitSpeed(g);
 			if (g.chaos) g.bs = Math.min(g.bs * 1.04, 600);
 			// enemy hit feels cooler (bluer sparks, a touch more shake)
 			SFX.paddle();
@@ -1928,6 +2376,13 @@ function update(dt) {
 				g._spinDir = Math.sign(g.py - g.by) || (Math.random() > 0.5 ? 1 : -1);
 				addSparks(g, EX, g.by, 8, 70, [0.8, 0.8, 0.3]);
 			}
+			if (g.eAbil.id === "thunderball" && g.eAbilActive > 0) {
+				spawnThunderPhantom(g, EX - PAD_W / 2, g.by, BASE_SPD * 1.55, "player");
+				g.flash = Math.max(g.flash, 0.12);
+				g.flashCol = [1, 0.93, 0.27];
+				addSparks(g, EX - PAD_W / 2, g.by, 10, 110, [1, 0.93, 0.27]);
+				tone(420, 0.05, "square", 0.035);
+			}
 		}
 	}
 
@@ -1949,6 +2404,7 @@ function update(dt) {
 		) {
 			g.bvx = -Math.abs(g.bvx);
 			g.bx = dpX - PAD_W / 2 - bs2 - 1;
+			applyRallyHitSpeed(g);
 			SFX.paddle();
 			addSparks(g, dpX, g.by, 8, 100, col.t);
 		}
@@ -1974,14 +2430,15 @@ function update(dt) {
 			} else {
 				g.bvx = -Math.abs(g.bvx);
 				g.bx = clX - PAD_W / 2 - bs2 - 2;
+				applyRallyHitSpeed(g);
 				SFX.paddle();
 				addSparks(g, clX - PAD_W / 2, g.by, 8, 100, [0.5, 0.5, 1]);
 			}
 		}
 	}
 
-	// Fool marionettist puppets (string-bound translucent paddles)
-	if (g.cfg.enemy.id === "thefool" && g.foolPuppets.length && g.bvx > 0) {
+	// Marionettist puppets (string-bound translucent paddles)
+	if (g.foolPuppets.length && g.bvx > 0) {
 		for (let i = 0; i < g.foolPuppets.length; i++) {
 			const p = g.foolPuppets[i];
 			if (p.broken) continue;
@@ -1998,140 +2455,12 @@ function update(dt) {
 				g.bvx = -Math.abs(Math.cos(rel * Math.PI * 0.32) * spd);
 				g.bvy = Math.sin(rel * Math.PI * 0.32) * spd;
 				g.bx = p.x - pw / 2 - bs2 - 1;
+				applyRallyHitSpeed(g);
 				p.broken = true;
 				p.fade = 0.9;
 				addSparks(g, p.x, p.y, 9, 90, [0.82, 0.82, 0.96]);
 				break;
 			}
-		}
-	}
-
-	// After-image ball
-	if (g.afterBall) {
-		const ab = g.afterBall;
-		if (ab.preZapT > 0) ab.preZapT = Math.max(0, ab.preZapT - dt);
-		if (ab.zapT > 0) {
-			ab.zapT -= dt;
-			ab.vx = 0;
-			ab.vy = 0;
-			if (Math.random() < dt * 18)
-				addSparks(g, ab.x, ab.y, 2, 40, [0.85, 0.9, 1]);
-			if (ab.zapT <= 0) g.afterBall = null;
-		} else {
-			const prevX = ab.x,
-				prevY = ab.y;
-			ab.life -= dt;
-			ab.x += ab.vx * dt;
-			ab.y += ab.vy * dt;
-			ab.trail.push({ x: ab.x, y: ab.y });
-			if (ab.trail.length > 6) ab.trail.shift();
-			if (ab.y - bs2 < 0) {
-				ab.y = bs2;
-				ab.vy = Math.abs(ab.vy);
-			}
-			if (ab.y + bs2 > GH) {
-				ab.y = GH - bs2;
-				ab.vy = -Math.abs(ab.vy);
-			}
-			// Player paddle collision (left-moving)
-			if (ab.vx < 0) {
-				const pR = g.px + PAD_W / 2 + 2;
-				if (prevX > pR + bs2 && ab.x < pR - bs2) {
-					const tHit = (prevX - (pR + bs2)) / (prevX - ab.x);
-					const yHit = prevY + (ab.y - prevY) * tHit;
-					if (yHit + bs2 >= g.py - g.ph / 2 && yHit - bs2 <= g.py + g.ph / 2) {
-						const spd = Math.hypot(ab.vx, ab.vy) || g.ballSpd * 0.85;
-						ab.x = pR + bs2 + 1;
-						ab.y = yHit;
-						ab.vx = Math.abs(ab.vx);
-						ab.vy += clamp(g.pVelY * 0.3, -spd * 0.6, spd * 0.6);
-					}
-				}
-			}
-			// Enemy paddle collision (right-moving)
-			if (ab.vx > 0) {
-				const eL = EX - PAD_W / 2 - 2;
-				if (prevX < eL - bs2 && ab.x > eL + bs2) {
-					const tHit = (eL - bs2 - prevX) / (ab.x - prevX);
-					const yHit = prevY + (ab.y - prevY) * tHit;
-					if (yHit + bs2 >= g.ey - g.eH / 2 && yHit - bs2 <= g.ey + g.eH / 2) {
-						ab.x = eL - bs2 - 1;
-						ab.y = yHit;
-						ab.vx = 0;
-						ab.vy = 0;
-						ab.life = 0;
-						addSparks(g, EX, yHit, 8, 80, [0.55, 0.88, 1]);
-					}
-				}
-			}
-			if ((g.cloneT > 0 || g.foolClone) && ab.vx > 0) {
-				const clX = EX - 35;
-				if (
-					ab.x + bs2 > clX - PAD_W / 2 - 2 &&
-					ab.x - bs2 < clX + PAD_W / 2 + 2 &&
-					ab.y + bs2 > g.cloneY - g.eH / 2 &&
-					ab.y - bs2 < g.cloneY + g.eH / 2
-				) {
-					ab.vx = -Math.abs(ab.vx);
-					ab.x = clX - PAD_W / 2 - bs2 - 2;
-				}
-			}
-			if (g.doppel && ab.vx < 0) {
-				const dpX = PX_HOME + 60,
-					dpY = g.doppelY ?? g.py,
-					dpT = dpY - g.ph * 0.4,
-					dpB = dpY + g.ph * 0.4;
-				if (
-					ab.x + bs2 > dpX - PAD_W / 2 &&
-					ab.x - bs2 < dpX + PAD_W / 2 &&
-					ab.y > dpT &&
-					ab.y < dpB
-				) {
-					ab.vx = Math.abs(ab.vx);
-					ab.x = dpX + PAD_W / 2 + bs2 + 1;
-				}
-			}
-			if (g.cfg.enemy.id === "thefool" && g.foolPuppets.length && ab.vx > 0) {
-				for (let i = 0; i < g.foolPuppets.length; i++) {
-					const p = g.foolPuppets[i];
-					if (p.broken) continue;
-					const pw = p.w || 8,
-						ph = p.h;
-					if (
-						ab.x + bs2 > p.x - pw / 2 &&
-						ab.x - bs2 < p.x + pw / 2 &&
-						ab.y + bs2 > p.y - ph / 2 &&
-						ab.y - bs2 < p.y + ph / 2
-					) {
-						const rel = clamp((ab.y - p.y) / (ph / 2), -1, 1);
-						const spd = Math.max(Math.hypot(ab.vx, ab.vy), g.ballSpd * 0.95);
-						ab.vx = -Math.abs(Math.cos(rel * Math.PI * 0.32) * spd);
-						ab.vy = Math.sin(rel * Math.PI * 0.32) * spd;
-						ab.x = p.x - pw / 2 - bs2 - 1;
-						p.broken = true;
-						p.fade = 0.85;
-						addSparks(g, p.x, p.y, 7, 70, [0.82, 0.82, 0.96]);
-						break;
-					}
-				}
-			}
-			if (g.goalLockT <= 0 && ab.x + bs2 > GW) {
-				g.freezeT = Math.max(g.freezeT, 0.45);
-				g.abCD = Math.max(0, g.abCD - 0.8);
-				g.shake = Math.max(g.shake, 0.05);
-				g.flash = 0.12;
-				g.flashCol = [0.55, 0.88, 1];
-				addSparks(g, GW, ab.y, 10, 95, [0.55, 0.88, 1]);
-				g.scorePops.push({
-					x: GW - 56,
-					y: ab.y,
-					text: "BOOST",
-					life: 0.7,
-					max: 0.7,
-					scale: 0.9,
-				});
-				g.afterBall = null;
-			} else if (ab.x - bs2 < 0 || ab.life <= 0) g.afterBall = null;
 		}
 	}
 
@@ -2174,7 +2503,23 @@ function update(dt) {
 				const yHit = prevY + (mb.y - prevY) * tHit;
 				if (yHit + bs2 >= g.ey - g.eH / 2 && yHit - bs2 <= g.ey + g.eH / 2) {
 					if (owner === "player") {
-						addSparks(g, EX, yHit, 6, 70, [0.5, 0.85, 1]);
+						// Phantom ball effects on enemy contact
+						if (mb.phantom && mb.pType === "thunder") {
+							g.freezeT = Math.max(g.freezeT, 1.2);
+							g.shake = Math.max(g.shake, 0.08);
+							addSparks(g, EX, yHit, 12, 100, [1, 0.93, 0.27]);
+							tone(100, 0.1, "sawtooth", 0.06);
+						} else if (mb.phantom && mb.pType === "slow") {
+							g.concussSlowT = Math.max(g.concussSlowT || 0, 2.0);
+							addSparks(g, EX, yHit, 8, 80, [0.3, 1, 0.4]);
+						} else if (mb.phantom && mb.pType === "fire") {
+							g._burnT = 4;
+							g._burnTickT = 0;
+							addSparks(g, EX, yHit, 12, 100, [1, 0.5, 0.15]);
+							tone(150, 0.08, "sawtooth", 0.05);
+						} else {
+							addSparks(g, EX, yHit, 6, 70, [0.5, 0.85, 1]);
+						}
 						g.multiBalls.splice(i, 1);
 						continue;
 					}
@@ -2217,7 +2562,7 @@ function update(dt) {
 				mb.x = clX - PAD_W / 2 - bs2 - 2;
 			}
 		}
-		if (g.cfg.enemy.id === "thefool" && g.foolPuppets.length && mb.vx > 0) {
+		if (g.foolPuppets.length && mb.vx > 0) {
 			for (let j = 0; j < g.foolPuppets.length; j++) {
 				const p = g.foolPuppets[j];
 				if (p.broken) continue;
@@ -2259,6 +2604,11 @@ function update(dt) {
 		}
 		if (g.goalLockT <= 0 && mb.x + bs2 > GW) {
 			const prevented = false;
+			if (mb.phantom) {
+				// Phantom balls don't score, just vanish
+				g.multiBalls.splice(i, 1);
+				continue;
+			}
 			if (owner === "player") {
 				g.freezeT = Math.max(g.freezeT, 0.38);
 				g.abCD = Math.max(0, g.abCD - 0.55);
@@ -2281,6 +2631,11 @@ function update(dt) {
 			continue;
 		}
 		if (mb.x - bs2 < 0 && mb.vx < 0) {
+			if (mb.phantom) {
+				// Phantom balls don't score, just vanish
+				g.multiBalls.splice(i, 1);
+				continue;
+			}
 			if (owner === "enemy") {
 				if (g.devUnlose) {
 					g.shake = Math.max(g.shake, 0.06);
@@ -2328,6 +2683,21 @@ function update(dt) {
 			mb.y - bs2 < g.ey + g.eH / 2
 		) {
 			if (owner === "player") {
+				// Phantom ball effects on enemy contact (fallback)
+				if (mb.phantom && mb.pType === "thunder") {
+					g.freezeT = Math.max(g.freezeT, 1.2);
+					g.shake = Math.max(g.shake, 0.08);
+					addSparks(g, EX, mb.y, 12, 100, [1, 0.93, 0.27]);
+					tone(100, 0.1, "sawtooth", 0.06);
+				} else if (mb.phantom && mb.pType === "slow") {
+					g.concussSlowT = Math.max(g.concussSlowT || 0, 2.0);
+					addSparks(g, EX, mb.y, 8, 80, [0.3, 1, 0.4]);
+				} else if (mb.phantom && mb.pType === "fire") {
+					g._burnT = 4;
+					g._burnTickT = 0;
+					addSparks(g, EX, mb.y, 12, 100, [1, 0.5, 0.15]);
+					tone(150, 0.08, "sawtooth", 0.05);
+				}
 				g.multiBalls.splice(i, 1);
 				continue;
 			}
@@ -2356,6 +2726,20 @@ function update(dt) {
 			SFX.paddle();
 			addSparks(g, 20, g.by, 18, 140, [0.5, 0.7, 1]);
 			resetBall(g, 1);
+		} else if (g.angelSteps > 0) {
+			// Angel Steps: auto-teleport paddle to ball, reverse ball
+			g.angelSteps--;
+			g.py = clamp(g.by, g.ph / 2, GH - g.ph / 2);
+			g.bvx = Math.abs(g.bvx);
+			g.bx = g.px + PAD_W / 2 + bs2 + 2;
+			g._angelFlashT = 0.6;
+			g.shake = Math.max(g.shake, 0.08);
+			g.flash = Math.max(g.flash, 0.15);
+			g.flashCol = [1, 1, 0.8];
+			addSparks(g, g.px, g.py, 16, 120, [1, 1, 0.7]);
+			addSparks(g, g.px, g.py, 8, 60, [1, 0.9, 0.5]);
+			tone(500, 0.08, "sine", 0.04);
+			tone(700, 0.06, "sine", 0.03, 40);
 		} else if (g.devUnlose) {
 			g.shake = 0.12;
 			g.flash = 0.14;
@@ -2376,12 +2760,6 @@ function update(dt) {
 			g.scoreFlashSide = -1;
 			g.flash = 0.3;
 			g.flashCol = [1, 0.2, 0.2];
-			// Berserker: reset stacks on enemy score
-			if (g.berserker) {
-				g.berserkerStacks = 0;
-				g.bs = g._berserkerBase;
-				g.ballSpd = g.bs;
-			}
 			if (g.eScore >= g.winScore) {
 				if (g.cfg.enemy.id === "thefool")
 					g.foolLoseLine =
@@ -2445,11 +2823,7 @@ function update(dt) {
 					text: "+" + scoreAmt,
 					life: 0.8,
 				});
-				if (g.siphon) {
-					g.aiReact = Math.max(g.aiReact * 0.95, 0.02);
-					g.aiSpd = Math.max(g.aiSpd * 0.97, 80);
-				}
-				if (g.pScore >= g.winScore) {
+		if (g.pScore >= g.winScore) {
 					g.done = true;
 					g.result = "win";
 				} else resetBall(g, -1);
@@ -2457,10 +2831,8 @@ function update(dt) {
 		}
 	}
 
-	// AI (frozen = no move, but not during lightning channel)
-	const eLtChanneling =
-		g.eAbil.id === "lightning" && g.eAbilPhase === "channel";
-	if (g.freezeT <= 0 && !eLtChanneling) {
+	// AI (frozen = no move; enemies CAN move during abilities unless lockdown)
+	if (g.freezeT <= 0 && g.lockdownFreezeT <= 0) {
 		let tgt = GH / 2;
 		// Detect ball direction change - reset target immediately
 		const ballDir = g.bvx > 0 ? 1 : g.bvx < 0 ? -1 : 0;
@@ -2487,13 +2859,6 @@ function update(dt) {
 							perf = yHit;
 						}
 					};
-					if (g.afterBall && (g.afterBall.zapT || 0) <= 0)
-						considerThreat(
-							g.afterBall.x,
-							g.afterBall.y,
-							g.afterBall.vx,
-							g.afterBall.vy,
-						);
 					for (let i = 0; i < g.multiBalls.length; i++) {
 						const mb = g.multiBalls[i];
 						if ((mb.owner || "player") !== "player") continue;
@@ -2512,13 +2877,30 @@ function update(dt) {
 			g.aiTgt = clamp(g.aiTgt, g.eH / 2, GH - g.eH / 2);
 		}
 		tgt = g.aiTgt;
+		// ═══ DELUSIO: AI tracks random position ═══
+		if (g.delusio && g._delusioT > 0) {
+			tgt = GH / 2 + (Math.sin(g.t * 7) * 0.5 + Math.cos(g.t * 11) * 0.5) * GH * 0.4;
+		}
+		// ═══ MIRAGE: AI tracks decoy ball ═══
+		if (g.mirage && g._mirageDecoy && g._mirageDecoy.active) {
+			tgt = g._mirageDecoy.y;
+		}
 		tgt = clamp(tgt, g.eH / 2, GH - g.eH / 2);
 		const diff = tgt - g.ey;
 		// Dash override
-		const curAiSpd = g.dashT > 0 ? g.dashSpd : g.aiSpd;
+		let curAiSpd = g.dashT > 0 ? g.dashSpd : g.aiSpd;
+		// ═══ ATTRITION (RALLY DECAY): enemy slows with combo ═══
+		if (g.rallyDecay && g.combo > 0) {
+			curAiSpd *= 1 - Math.min(g.combo * 0.03, 0.35);
+		}
+		// ═══ SPIN DRAG: enemy slower with spin returns ═══
+		if (g.spinDrag && g._spinDragMul < 1) {
+			curAiSpd *= g._spinDragMul;
+		}
 		// Dead zone prevents micro-jitter when near target
-		if (Math.abs(diff) > 2 && g.shockT <= 0) {
-			g.ey += Math.sign(diff) * Math.min(Math.abs(diff), curAiSpd * dt);
+		if (Math.abs(diff) > 2 && g.concussStunT <= 0) {
+			const spdMul = g.concussSlowT > 0 ? 0.5 : 1;
+			g.ey += Math.sign(diff) * Math.min(Math.abs(diff), curAiSpd * spdMul * dt);
 		}
 		// Jitter effect
 		if (g.jitter) g.ey += Math.sin(g.t * 14) * 1.1;
@@ -2526,11 +2908,35 @@ function update(dt) {
 	}
 
 	// ═══ ENEMY ABILITY SYSTEM ═══
-	if (g.eAbil.id !== "none" && (g.freezeT || 0) <= 0) {
+	const nullSuppressed = g.nullField && g._nullActiveT > 0;
+	if (g.eAbil.id !== "none" && (g.freezeT || 0) <= 0 && !nullSuppressed) {
 		// Cooldown tick
 		if (g.eAbilCD > 0) g.eAbilCD -= dt;
 		if (g.wStormCD > 0) g.wStormCD -= dt;
+		if (g.eAbilActive > 0) g.eAbilActive -= dt;
+		if (g.eAbil.id === "clowncurse" && g.eAbilActive > 0) {
+			g.ctrlInvertT = Math.max(g.ctrlInvertT, 0.18);
+			g.foolClownTick -= dt;
+			if (g.foolClownTick <= 0 && g.startPause <= 0) {
+				const confCols = [
+					[1, 0.35, 0.84],
+					[1, 0.84, 0.29],
+					[0.33, 0.91, 1],
+					[0.54, 1, 0.46],
+					[1, 0.54, 0.35],
+				];
+				for (let i = 0; i < 4; i++) {
+					const c = confCols[(Math.random() * confCols.length) | 0];
+					addSparks(g, g.px + rng(-24, 24), g.py + rng(-32, 32), 5, 85, c);
+				}
+				g.foolClownTick = 0.1 + Math.random() * 0.08;
+			}
+		}
+		if (g.eAbil.id === "marionette" && g.eAbilActive <= 0 && g.foolPuppets.length) {
+			g.foolPuppets.length = 0;
+		}
 		if (g.dashT > 0) g.dashT -= dt;
+		if (g.blinkT > 0) g.blinkT -= dt;
 		if (g.blinkFlash > 0) g.blinkFlash -= dt * 4;
 		if (g.bulkT > 0) {
 			g.bulkT -= dt;
@@ -2697,24 +3103,6 @@ function update(dt) {
 					segs.push({ x1: lx, y1: ly, x2: tx, y2: ty });
 					return segs;
 				};
-				if (g.afterBall && !g.afterBall.zapT) {
-					if (!g.afterBall.stormMarked) {
-						g.afterBall.stormMarked = true;
-						g.afterBall.preZapT = preZapDelay;
-					} else if ((g.afterBall.preZapT || 0) <= 0) {
-						g.ltBolts.push({
-							segs: makeZapSegs(g.afterBall.x, g.afterBall.y, 8, 20),
-							life: 0.24,
-							storm: true,
-						});
-						if (g.ltBolts.length > MAX_BOLTS)
-							g.ltBolts.splice(0, g.ltBolts.length - MAX_BOLTS);
-						addSparks(g, g.afterBall.x, g.afterBall.y, 8, 90, [0.85, 0.9, 1]);
-						g.afterBall.zapT = zapDelay;
-						g.afterBall.vx = 0;
-						g.afterBall.vy = 0;
-					}
-				}
 				if (g.multiBalls.length) {
 					for (let i = 0; i < g.multiBalls.length; i++) {
 						const mb = g.multiBalls[i];
@@ -2753,6 +3141,7 @@ function update(dt) {
 						life: 4,
 						trail: [],
 						zig: 0.12,
+						target: "player",
 						fromWarden: true,
 					});
 					g.wStormNextBolt =
@@ -2794,41 +3183,30 @@ function update(dt) {
 						shouldCast = true;
 					}
 					break;
-				case "spin":
-					// Queue spin when enemy is about to hit ball (ball very close to paddle)
-					if (g.bvx > 0 && g.bx > GW * 0.7 && Math.abs(g.by - g.ey) < g.eH) {
-						g.spinNext = true;
-						shouldCast = true;
-					}
-					break;
 				case "blink":
-					// Blink when ball is about to score and they can't reach it
-					if (
-						g.bvx > 0 &&
-						g.bx > GW * 0.6 &&
-						Math.abs(g.ey - g.by) > g.eH * 0.7
-					) {
-						shouldCast = true;
-					}
-					break;
-				case "bulk":
-					// Bulk up when ball is heading toward them at mid range
-					if (ballApproaching && g.bx > GW * 0.45 && g.bx < GW * 0.7) {
-						shouldCast = true;
-					}
-					break;
-				case "pull":
-					// Pull when ball is on enemy half and not safely controlled
-					if (
-						g.bx > GW * 0.45 &&
-						(g.bvx < 0 || Math.abs(g.by - g.ey) > g.eH * 0.7)
-					) {
+					// Blink when ball is heading toward enemy
+					if (ballApproaching && g.eAbilActive <= 0) {
 						shouldCast = true;
 					}
 					break;
 				case "lightning":
 					// Channel when ball is safely on player side heading away
 					if (g.bvx < 0 && g.bx < GW * 0.35) {
+						shouldCast = true;
+					}
+					break;
+				case "thunderball":
+					if (ballApproaching && g.eAbilActive <= 0) {
+						shouldCast = true;
+					}
+					break;
+				case "clowncurse":
+					if (g.bvx < 0 && g.bx < GW * 0.55 && g.eAbilActive <= 0) {
+						shouldCast = true;
+					}
+					break;
+				case "marionette":
+					if (ballApproaching && g.eAbilActive <= 0) {
 						shouldCast = true;
 					}
 					break;
@@ -2865,6 +3243,7 @@ function update(dt) {
 			if (g.startPause > 0) shouldCast = false;
 			if (shouldCast) {
 				g.eAbilCD = ab.cd;
+				if (g.reflexSlow) g._reflexSlowT = 1.0;
 				// Execute ability
 				switch (ab.id) {
 					case "dash":
@@ -2873,35 +3252,54 @@ function update(dt) {
 						addSparks(g, EX, g.ey, 8, 60, [1, 0.8, 0.5]);
 						tone(500, 0.04, "square", 0.04);
 						break;
-					case "spin":
-						// Queued - activates on next enemy hit
-						tone(300, 0.06, "sine", 0.03);
-						break;
 					case "blink":
-						// Instant teleport
-						addSparks(g, EX, g.ey, 10, 80, [0.7, 0.5, 1]);
-						g.ey = clamp(g.by, g.eH / 2, GH - g.eH / 2);
-						g.blinkFlash = 1;
-						addSparks(g, EX, g.ey, 10, 80, [0.7, 0.5, 1]);
-						tone(800, 0.03, "sine", 0.04);
-						tone(1200, 0.05, "sine", 0.03, 20);
-						break;
-					case "bulk":
-						g.bulkT = ab.dur;
-						addSparks(g, EX, g.ey, 12, 60, [1, 0.4, 0.3]);
-						tone(150, 0.12, "sawtooth", 0.05);
-						tone(100, 0.18, "sawtooth", 0.04, 40);
-						break;
-					case "pull":
-						g.pullT = ab.dur;
-						tone(200, 0.1, "sine", 0.04);
-						tone(150, 0.15, "sine", 0.03, 50);
+						g.eAbilActive = ab.dur;
+						g.blinkT = ab.dur;
+						tone(300, 0.08, "sine", 0.04);
+						tone(150, 0.12, "sine", 0.03, 50);
 						break;
 					case "lightning":
 						g.eAbilPhase = "channel";
 						g.ltChannel = 0.7;
 						tone(80, 0.3, "sawtooth", 0.04);
 						tone(120, 0.4, "sawtooth", 0.03, 100);
+						break;
+					case "thunderball":
+						g.eAbilActive = ab.dur;
+						g.flash = Math.max(g.flash, 0.12);
+						g.flashCol = [1, 0.93, 0.27];
+						addSparks(g, EX, g.ey, 12, 80, [1, 0.93, 0.27]);
+						tone(190, 0.1, "sawtooth", 0.05);
+						tone(380, 0.06, "square", 0.03, 30);
+						break;
+					case "clowncurse":
+						g.eAbilActive = ab.dur;
+						g.ctrlInvertT = Math.max(g.ctrlInvertT, ab.dur);
+						g.foolClownTick = 0.05;
+						g.flash = Math.max(g.flash, 0.14);
+						g.flashCol = [1, 0.36, 0.72];
+						addSparks(g, g.px, g.py, 22, 130, [1, 0.35, 0.84]);
+						addSparks(g, g.px, g.py, 18, 120, [0.33, 0.91, 1]);
+						tone(620, 0.06, "square", 0.04);
+						tone(260, 0.08, "sawtooth", 0.03, 30);
+						break;
+					case "marionette":
+						g.eAbilActive = ab.dur;
+						// 3 evenly spaced marionettes across the field
+						{
+							const ph = Math.max(48, g.eH * 0.72);
+							const spacing = GH / 4;
+							g.foolPuppets = [
+								{ x: EX - 150, y: spacing, ax: EX - 170, h: ph, w: 8, a: 0.55, broken: false, fade: 1 },
+								{ x: EX - 110, y: spacing * 2, ax: EX - 130, h: ph, w: 8, a: 0.55, broken: false, fade: 1 },
+								{ x: EX - 150, y: spacing * 3, ax: EX - 170, h: ph, w: 8, a: 0.55, broken: false, fade: 1 },
+							];
+						}
+						g.flash = Math.max(g.flash, 0.12);
+						g.flashCol = [1, 0.34, 0.34];
+						addSparks(g, EX - 100, g.ey, 16, 110, [0.95, 0.8, 0.85]);
+						tone(210, 0.08, "sine", 0.04);
+						tone(310, 0.06, "square", 0.03, 40);
 						break;
 					case "voidpulse":
 						g.vpT = 0.6;
@@ -2948,7 +3346,7 @@ function update(dt) {
 						break;
 					case "accel":
 						// Overdrive: ball accelerates to 2x speed for 2s
-						g.overdriveT = 2;
+						g.overdriveT = ab.dur;
 						g.shake = 0.1;
 						g.flash = 0.15;
 						g.flashCol = [1, 0.6, 0.2];
@@ -2973,7 +3371,7 @@ function update(dt) {
 function ricoB(gg) {
 	if (!gg.rico) return;
 	const s = Math.hypot(gg.bvx, gg.bvy);
-	const n = Math.min(s * 1.15, MAX_BALL_SPD);
+	const n = Math.min(s * 1.05, MAX_BALL_SPD);
 	gg.bvx *= n / s;
 	gg.bvy *= n / s;
 	gg.ballSpd = n;
@@ -3155,6 +3553,21 @@ function draw(ctx, cw, ch) {
 		ctx.shadowBlur = 6;
 		ctx.fillText(g.cfg.diff + (g.cfg.boss ? " BOSS" : ""), GW / 2, 4);
 		ctx.shadowBlur = 0;
+	}
+	// Curve / homing indicator
+	{
+		const labels = [];
+		if (g.curveNext && g.bvx > 0) labels.push("CURVE");
+		if (g.homing && g.bvx > 0 && g.bx > GW * 0.4) labels.push("HOMING");
+		if (g.redirect && g.bvx > 0 && !g._redirectUsed) labels.push("REDIRECT");
+		if (labels.length) {
+			ctx.font = '9px "Share Tech Mono",monospace';
+			ctx.textAlign = "center";
+			ctx.textBaseline = "top";
+			const ca = 0.5 + 0.3 * Math.sin(g.t * 5);
+			ctx.fillStyle = "rgba(140,255,180," + ca + ")";
+			ctx.fillText(labels.join(" + "), GW / 2, 16);
+		}
 	}
 	const showFoolDialogBlocking =
 		g.cfg.enemy.id === "thefool" && g.foolDialogActive && g.foolDialogBlocking;
@@ -3367,6 +3780,7 @@ function draw(ctx, cw, ch) {
 	if (g.ctrlInvertT > 0) {
 		const ia = Math.min(1, g.ctrlInvertT / 1.3);
 		const pulse = 0.5 + 0.5 * Math.sin(g.t * 10.5);
+		const clownBoost = g.eAbil.id === "clowncurse" && g.eAbilActive > 0;
 		ctx.textAlign = "center";
 		ctx.textBaseline = "top";
 		ctx.globalAlpha = 0.78 + 0.22 * pulse;
@@ -3386,11 +3800,12 @@ function draw(ctx, cw, ch) {
 		];
 		for (let c = 0; c < corners.length; c++) {
 			const [cx, cy, sx, sy] = corners[c];
-			for (let i = 0; i < 9; i++) {
+			for (let i = 0; i < (clownBoost ? 14 : 9); i++) {
 				const tt = g.t * 3.2 + i * 0.73 + c * 0.41;
 				const dx = (8 + i * 7 + Math.sin(tt * 1.4) * 8) * sx;
 				const dy = (6 + i * 5 + Math.cos(tt * 1.1) * 7) * sy;
-				const size = 2.2 + (i % 3) * 0.9;
+				const size =
+					(clownBoost ? 3.6 : 2.2) + (i % 3) * (clownBoost ? 1.2 : 0.9);
 				ctx.globalAlpha = (0.16 + 0.16 * Math.abs(Math.sin(tt * 2.2))) * ia;
 				ctx.fillStyle = confCols[(i + c) % confCols.length];
 				ctx.fillRect(cx + dx - size * 0.5, cy + dy - size * 0.5, size, size);
@@ -3496,12 +3911,47 @@ function draw(ctx, cw, ch) {
 	const _eDispShdw = frozen ? "100,150,255" : eSh ? "180,110,60" : _eShdw;
 	const _eGlow = _eDiff === "SSS" ? 14 : _eDiff === "SS" ? 10 : 6;
 	ctx.globalAlpha = g.ghostA;
+	// Blink: enemy paddle flickers in and out
+	if (g.blinkT > 0) {
+		const blinkVis = Math.sin(g.t * 14) > 0.15 ? 1 : 0;
+		ctx.globalAlpha *= blinkVis;
+	}
 	ctx.shadowColor = `rgba(${_eDispShdw},${frozen ? 0.4 : eSh ? 0.3 : 0.55})`;
 	ctx.shadowBlur = frozen ? 8 : eSh ? 3 : _eGlow;
 	ctx.fillStyle = _eDispCol;
 	ctx.fillRect(EX - PAD_W / 2, g.ey - g.eH / 2, PAD_W, g.eH);
 	ctx.shadowBlur = 0;
 	ctx.globalAlpha = 1;
+	// Burn effect overlay on enemy paddle
+	if (g._burnT > 0) {
+		const burnA = Math.min(g._burnT / 2, 0.6) * (0.5 + 0.5 * Math.sin(g.t * 10));
+		ctx.globalAlpha = burnA;
+		ctx.fillStyle = "#ff4400";
+		ctx.shadowColor = "rgba(255,80,0,0.6)";
+		ctx.shadowBlur = 10;
+		ctx.fillRect(EX - PAD_W / 2 - 2, g.ey - g.eH / 2 - 2, PAD_W + 4, g.eH + 4);
+		ctx.shadowBlur = 0;
+		ctx.globalAlpha = 1;
+	}
+	// Delusio: confused question mark when active
+	if (g.delusio && g._delusioT > 0) {
+		ctx.globalAlpha = Math.min(g._delusioT * 3, 0.8);
+		ctx.fillStyle = "#ff44ff";
+		ctx.font = "bold 16px monospace";
+		ctx.textAlign = "center";
+		ctx.fillText("?", EX, g.ey - g.eH / 2 - 10);
+		ctx.globalAlpha = 1;
+	}
+	// Speed Burst glow on ball
+	if (g._speedBurstT > 0) {
+		ctx.globalAlpha = 0.4 * Math.min(g._speedBurstT * 5, 1);
+		ctx.fillStyle = "#ffaa22";
+		ctx.shadowColor = "rgba(255,170,34,0.6)";
+		ctx.shadowBlur = 14;
+		ctx.fillRect(g.bx - BALL_SZ, g.by - BALL_SZ, BALL_SZ * 2, BALL_SZ * 2);
+		ctx.shadowBlur = 0;
+		ctx.globalAlpha = 1;
+	}
 	if (_eId === "thefool") {
 		const hatY = g.ey - g.eH / 2 - 8;
 		ctx.globalAlpha = 0.92;
@@ -3638,6 +4088,21 @@ function draw(ctx, cw, ch) {
 		ctx.shadowBlur = 0;
 		ctx.globalAlpha = 1;
 	}
+	if (g.eAbil.id === "clowncurse" || g.eAbil.id === "marionette") {
+		const a = g.eAbilActive > 0 ? 0.28 : 0.16;
+		ctx.globalAlpha = a;
+		ctx.fillStyle = "#ff3344";
+		ctx.shadowColor = "rgba(255,70,90,0.45)";
+		ctx.shadowBlur = g.eAbilActive > 0 ? 12 : 8;
+		ctx.fillRect(
+			EX - PAD_W / 2 - 9,
+			g.ey - g.eH / 2 - 8,
+			PAD_W + 18,
+			g.eH + 16,
+		);
+		ctx.shadowBlur = 0;
+		ctx.globalAlpha = 1;
+	}
 	// Clone paddle (enemy ability)
 	if (g.cloneT > 0 || g.foolClone) {
 		const clX = EX - 35;
@@ -3650,7 +4115,7 @@ function draw(ctx, cw, ch) {
 		ctx.shadowBlur = 0;
 		ctx.globalAlpha = 1;
 	}
-	if (g.cfg.enemy.id === "thefool" && g.foolPuppets.length) {
+	if (g.foolPuppets.length) {
 		for (let i = 0; i < g.foolPuppets.length; i++) {
 			const p = g.foolPuppets[i];
 			const fa = p.broken ? Math.max(0, p.fade) : p.a;
@@ -3737,7 +4202,9 @@ function draw(ctx, cw, ch) {
 	const ghostAlpha =
 		(g.ghostBall ? 0.28 + 0.2 * Math.sin(g.t * 10) : 1) *
 		(ballHidden ? 0.02 : 1);
-	ctx.globalAlpha = ghostAlpha;
+	let ballBlinkAlpha = 1;
+	if (g.blinkT > 0) ballBlinkAlpha = Math.sin(g.t * 14) > 0.15 ? 1 : 0.04;
+	ctx.globalAlpha = ghostAlpha * ballBlinkAlpha;
 	if (chroma > 0.3) {
 		ctx.globalAlpha = ghostAlpha * 0.15;
 		ctx.fillStyle = "#f55";
@@ -3805,44 +4272,52 @@ function draw(ctx, cw, ch) {
 		ctx.globalAlpha = 1;
 	}
 
-	// Afterimage ball
-	if (g.afterBall) {
-		const ab = g.afterBall;
-		const a = Math.min(ab.life, 1) * 0.35;
-		for (let i = 0; i < ab.trail.length; i++) {
-			const t = i / ab.trail.length;
-			ctx.globalAlpha = t * 0.06 * a;
-			ctx.fillStyle = col.p;
-			const sz = BALL_SZ * (0.2 + t * 0.3);
-			ctx.fillRect(ab.trail[i].x - sz / 2, ab.trail[i].y - sz / 2, sz, sz);
-		}
-		ctx.globalAlpha = a;
-		ctx.shadowColor = col.g + "0.2)";
-		ctx.shadowBlur = 6;
-		ctx.fillStyle = col.p;
-		ctx.fillRect(ab.x - BALL_SZ / 2, ab.y - BALL_SZ / 2, BALL_SZ, BALL_SZ);
-		ctx.shadowBlur = 0;
-		ctx.globalAlpha = 1;
-	}
-
 	// Multi balls
 	for (const mb of g.multiBalls) {
 		const a = Math.min(mb.life, 1) * 0.55;
+		// Color phantom balls by type
+		let mbCol = col.p;
+		let mbGlow = col.g + "0.3)";
+		if (mb.phantom) {
+			if (mb.pType === "thunder") { mbCol = "#ffe94a"; mbGlow = "rgba(255,233,74,0.4)"; }
+			else if (mb.pType === "slow") { mbCol = "#44ff66"; mbGlow = "rgba(68,255,102,0.4)"; }
+			else if (mb.pType === "fire") { mbCol = "#ff6622"; mbGlow = "rgba(255,102,34,0.4)"; }
+		}
 		for (let i = 0; i < mb.trail.length - 1; i++) {
 			const t = i / mb.trail.length;
 			ctx.globalAlpha = t * 0.08 * a;
-			ctx.fillStyle = col.p;
+			ctx.fillStyle = mbCol;
 			const sz = BALL_SZ * (0.2 + t * 0.35);
 			ctx.fillRect(mb.trail[i].x - sz / 2, mb.trail[i].y - sz / 2, sz, sz);
 		}
 		ctx.globalAlpha = a;
-		ctx.shadowColor = col.g + "0.3)";
+		ctx.shadowColor = mbGlow;
 		ctx.shadowBlur = 4;
-		ctx.fillStyle = col.p;
+		ctx.fillStyle = mbCol;
 		ctx.fillRect(mb.x - BALL_SZ / 2, mb.y - BALL_SZ / 2, BALL_SZ, BALL_SZ);
 		ctx.shadowBlur = 0;
 	}
 	ctx.globalAlpha = 1;
+
+	// Mirage decoy ball
+	if (g._mirageDecoy && g._mirageDecoy.active) {
+		const dc = g._mirageDecoy;
+		const da = Math.min(dc.life, 1) * 0.5;
+		for (let i = 0; i < dc.trail.length; i++) {
+			const t = i / dc.trail.length;
+			ctx.globalAlpha = t * 0.06 * da;
+			ctx.fillStyle = "#ffcc44";
+			const sz = BALL_SZ * (0.2 + t * 0.3);
+			ctx.fillRect(dc.trail[i].x - sz / 2, dc.trail[i].y - sz / 2, sz, sz);
+		}
+		ctx.globalAlpha = da;
+		ctx.shadowColor = "rgba(255,200,60,0.4)";
+		ctx.shadowBlur = 8;
+		ctx.fillStyle = "#ffcc44";
+		ctx.fillRect(dc.x - BALL_SZ / 2, dc.y - BALL_SZ / 2, BALL_SZ, BALL_SZ);
+		ctx.shadowBlur = 0;
+		ctx.globalAlpha = 1;
+	}
 
 	// Sparks
 	// richer additive sparks
@@ -4105,17 +4580,6 @@ function draw(ctx, cw, ch) {
 		);
 		ctx.globalAlpha = 1;
 	}
-	// VoidWalk: teleport streaks
-	if (g.voidWalk && g.bvx < 0) {
-		ctx.globalAlpha = 0.06;
-		ctx.strokeStyle = "#0fc";
-		ctx.lineWidth = 0.5;
-		ctx.beginPath();
-		ctx.moveTo(g.bx, g.by);
-		ctx.lineTo(g.px, g.py);
-		ctx.stroke();
-		ctx.globalAlpha = 1;
-	}
 	// EchoHit: ambient resonance arcs from paddle face
 	if (g.echoHit) {
 		const epx = g.px + PAD_W / 2;
@@ -4346,14 +4810,23 @@ function draw(ctx, cw, ch) {
 			ctx.lineTo(b.trail[i].x, b.trail[i].y);
 			ctx.stroke();
 		}
+		const isThunderBall = !!b.thunderBall;
 		// Bolt head
 		ctx.globalAlpha = ba;
-		ctx.fillStyle = "#fff";
+		ctx.fillStyle = isThunderBall ? "#ffee44" : "#fff";
 		ctx.shadowColor = headShadow;
 		ctx.shadowBlur = 14;
 		ctx.beginPath();
-		ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+		ctx.arc(b.x, b.y, isThunderBall ? 5 : 3, 0, Math.PI * 2);
 		ctx.fill();
+		if (isThunderBall) {
+			ctx.globalAlpha = 0.45 * ba;
+			ctx.strokeStyle = "#fff8ad";
+			ctx.lineWidth = 1.3;
+			ctx.beginPath();
+			ctx.arc(b.x, b.y, 8 + Math.sin(g.t * 24) * 1.8, 0, Math.PI * 2);
+			ctx.stroke();
+		}
 		ctx.shadowBlur = 0;
 	}
 	ctx.globalAlpha = 1;
@@ -4746,6 +5219,64 @@ function draw(ctx, cw, ch) {
 		ctx.fillText(g.combo + "x", GW - 14, GH - 6);
 	}
 
+	// Center combo pop-up
+	if (g.centerComboPopT > 0 && g.centerComboPop) {
+		const a = Math.min(g.centerComboPopT, 1);
+		const rise = (1 - g.centerComboPopT) * 30;
+		ctx.save();
+		ctx.globalAlpha = a;
+		ctx.fillStyle = g.centerCombo >= 10 ? "#ffee00" : g.centerCombo >= 5 ? "#ff9900" : "#66ff66";
+		ctx.font = 'bold 14px "Share Tech Mono",monospace';
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.fillText(g.centerComboPop, g.px + PAD_W + 60, g.py - 20 - rise);
+		ctx.restore();
+	}
+
+	// NULL field indicator
+	if (g.nullField) {
+		const nullActive = g._nullActiveT > 0;
+		ctx.save();
+		ctx.font = 'bold 11px "Share Tech Mono",monospace';
+		ctx.textAlign = "center";
+		ctx.textBaseline = "top";
+		if (nullActive) {
+			const pulse = 0.6 + 0.4 * Math.sin(g.t * 4);
+			ctx.globalAlpha = pulse;
+			ctx.fillStyle = "#ff2244";
+			ctx.fillText("◈ NULL ACTIVE ◈", GW / 2, GH - 18);
+		} else {
+			const cd = Math.ceil(g._nullCooldownT);
+			ctx.globalAlpha = 0.4;
+			ctx.fillStyle = "#888";
+			ctx.fillText("NULL " + cd + "s", GW / 2, GH - 18);
+		}
+		ctx.restore();
+	}
+
+	// Angel Steps remaining
+	if (g.angelSteps > 0) {
+		ctx.save();
+		ctx.font = 'bold 11px "Share Tech Mono",monospace';
+		ctx.textAlign = "left";
+		ctx.textBaseline = "top";
+		ctx.globalAlpha = 0.7;
+		ctx.fillStyle = "#ffe880";
+		ctx.fillText("✦ ANGEL x" + g.angelSteps, 12, GH - 18);
+		ctx.restore();
+	}
+
+	// Angel Steps teleport flash
+	if (g._angelFlashT > 0) {
+		const fa = g._angelFlashT / 0.6;
+		ctx.save();
+		ctx.globalCompositeOperation = "lighter";
+		ctx.globalAlpha = fa * 0.4;
+		ctx.fillStyle = "#fffff0";
+		ctx.fillRect(g.px - PAD_W, g.py - g.ph / 2 - 10, PAD_W * 3, g.ph + 20);
+		ctx.restore();
+	}
+
 	// Corner cooldown/status overlays removed by request.
 
 	// Start-of-point trajectory indicator (short directional arrow from ball)
@@ -4999,6 +5530,7 @@ function draw(ctx, cw, ch) {
 		ctx.fillText("ENTER / CLICK", GW / 2, y + 28);
 		ctx.globalAlpha = 1;
 	}
+
 	ctx.restore();
 }
 
@@ -5069,10 +5601,9 @@ function doAbility() {
 				g.by = snapY;
 				const offsetDeg = rng(60, 180) * (Math.random() < 0.5 ? -1 : 1);
 				const relaunchAng = backAng + (offsetDeg * Math.PI) / 180;
-				g.bvx = Math.cos(relaunchAng) * curSpd;
+				g.bvx = Math.abs(Math.cos(relaunchAng)) * curSpd;
 				g.bvy = Math.sin(relaunchAng) * curSpd;
-				if (Math.abs(g.bvx) < curSpd * 0.35)
-					g.bvx = (g.bvx < 0 ? -1 : 1) * curSpd * 0.35;
+				if (Math.abs(g.bvx) < curSpd * 0.35) g.bvx = curSpd * 0.35;
 				g.bvx *= 1.02;
 				g.bvy = clamp(g.bvy + rng(-45, 45), -curSpd * 0.95, curSpd * 0.95);
 				g.abCD = cd;
@@ -5176,7 +5707,7 @@ function handleContinue() {
 		}
 		wave = nw;
 		const rewardTier = DIFF_REWARD[clearedDiff] || "common";
-		curCards = getCardsForDiff(clearedDiff, 3);
+		curCards = getCardsForDiff(clearedDiff, 3, savedState?.ownedAbilityIds || []);
 		curEUp = E_UPS[Math.floor(Math.random() * E_UPS.length)];
 		curDiff = clearedDiff;
 		showUpgradeScreen(rewardTier, clearedDiff);
@@ -5262,6 +5793,9 @@ function showUpgradeScreen(rewardTier, clearedDiff) {
 		};
 		d.onclick = () => {
 			const t = { ...(savedState ?? {}) };
+			t.ownedAbilityIds = Array.from(
+				new Set([...(t.ownedAbilityIds || []), c.id]),
+			);
 			c.fn(t);
 			savedState = t;
 			SFX.sel();
@@ -5587,19 +6121,17 @@ function buildDevAbilityState() {
 		ph: BASE_PAD_H * pad.hMul,
 		pSpd: 480,
 		cdMul: 1,
+		cdRally: false,
+		midlineSlow: false,
 		lives: 3,
 		shields: 0,
 		aiMod: 1,
 		horizMul: 1,
 		edge: false,
 		rico: false,
-		magnet: false,
 		dblScore: false,
 		vampire: false,
 		oracleSight: false,
-		freeze: false,
-		afterimage: false,
-		shockwave: false,
 		homing: false,
 		timewarp: false,
 		multicast: false,
@@ -5609,15 +6141,31 @@ function buildDevAbilityState() {
 		aiCap: false,
 		triScore: false,
 		echoHit: false,
-		voidWalk: false,
 		stormCaller: false,
 		phantomStrike: false,
 		mirrorMatch: false,
-		berserker: false,
-		overcharge: false,
 		masterSkill: false,
 		siphon: false,
 		perfectPilot: false,
+		tailwind: false,
+		reflexSlow: false,
+		redirect: false,
+		velocitySurge: false,
+		concussion: false,
+		lockdown: false,
+		phantomThunder: false,
+		phantomSlow: false,
+		phantomFire: false,
+		stormStrike: false,
+		angelSteps: 0,
+		paradoxEngine: false,
+		nullField: false,
+		delusio: false,
+		speedBurst: false,
+		rallyDecay: false,
+		spinDrag: false,
+		straightShot: false,
+		mirage: false,
 	};
 	if (devPad === "dev_perfect") {
 		state.perfectPilot = true;
@@ -5718,7 +6266,7 @@ window.showDevScreen = function showDevScreen() {
 		const tc = TIER_COLORS[c.tier] || "#aaa";
 		const row = document.createElement("div");
 		row.style.cssText = `padding:9px 10px;cursor:pointer;border:1px solid ${sel ? tc : "#3a3a46"};border-radius:4px;background:${sel ? "rgba(255,255,255,0.06)" : "#050508"};display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:${sel ? `0 0 0 1px ${tc}66` : "0 0 0 1px rgba(255,255,255,0.03) inset"};`;
-		row.innerHTML = `<div style="display:flex;flex-direction:column;align-items:flex-start;"><div style="font-size:9px;letter-spacing:2px;color:${sel ? "#ddd" : "#888"};">${c.name}</div><div style="font-size:7px;letter-spacing:1px;color:${sel ? "#998" : "#666"};">${c.desc}</div></div><div style="font-size:12px;color:${tc};">${sel ? "●" : "○"}</div>`;
+		row.innerHTML = `<div style="display:flex;flex-direction:column;align-items:flex-start;"><div style="font-size:9px;letter-spacing:2px;color:${sel ? "#ddd" : "#888"};">${c.name}</div><div style="font-size:9px;letter-spacing:1px;color:${sel ? "#ccc" : "#999"};">${c.desc}</div></div><div style="font-size:12px;color:${tc};">${sel ? "●" : "○"}</div>`;
 		row.onclick = () => {
 			devAbilityScrollTop = abList.scrollTop;
 			devScreenScrollTop = devScreenEl

@@ -417,13 +417,11 @@ export function applyFoolGoal(g, amount) {
 	amount = 1;
 	g.goalLockT = Math.max(g.goalLockT || 0, 0.22);
 	if (g.foolPointGate) {
-		g.afterBall = null;
 		g.multiBalls.length = 0;
 		if (g.startPause <= 0) resetBall(g, -1);
 		return { win: false, prevented: true };
 	}
 	g.foolPointGate = true;
-	g.afterBall = null;
 	g.multiBalls.length = 0;
 	g.pScore += 1;
 	triggerFoolScoreAscPulse(g, true);
