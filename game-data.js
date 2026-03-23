@@ -11,10 +11,10 @@ export const PX_HOME = 40,
 	MAX_WAVE = 12,
 	TRAIL = 24,
 	BASE_SPD = 340;
-export const MAX_BALL_SPD = Infinity; // intentionally uncapped per design
+export const MAX_BALL_SPD = 2200;
 // Visual/particle caps (raised to allow richer effects)
 export const MAX_SPARKS = 350,
-	MAX_MULTI = 8,
+	MAX_MULTI = 14,
 	MAX_BOLTS = 16;
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -88,8 +88,9 @@ export function pickIncomingThreatY(g, targetX, dir) {
 // Rally speed multiplier helper
 export function getRallyMul(hits) {
 	if (!hits || hits <= 0) return 1;
-	// First hit gives a noticeable boost, subsequent hits grow more slowly
-	return 1;
+	// Growth eases out so rallies speed up without becoming chaotic too fast.
+	const extra = Math.min(0.12, Math.log2(hits + 1) * 0.012);
+	return 1 + extra;
 }
 
 // ═══ DIFFICULTY RATINGS ═══

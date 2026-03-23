@@ -1,3 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PONG ROGUE - Standalone</title>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Mono:wght@400;700&display=swap");
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+body {
+	background: #000;
+	overflow: hidden;
+	font-family: "Share Tech Mono", monospace;
+	color: #fff;
+	width: 100vw;
+	height: 100vh;
+	user-select: none;
+}
+#crt-scan {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 100;
+	background: repeating-linear-gradient(
+		0deg,
+		rgba(0, 0, 0, 0.06) 0px,
+		rgba(0, 0, 0, 0.06) 1px,
+		transparent 1px,
+		transparent 3px
+	);
+}
+#crt-edge {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 101;
+	box-shadow:
+		inset 0 0 120px rgba(0, 0, 0, 0.5),
+		inset 0 0 40px rgba(0, 0, 0, 0.3);
+	border-radius: 14px;
+}
+canvas {
+	display: block;
+	width: 100vw;
+	height: 100vh;
+	cursor: none;
+}
+.screen {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	z-index: 50;
+	background:
+		radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.035), transparent 40%),
+		radial-gradient(circle at 80% 88%, rgba(255, 255, 255, 0.025), transparent 42%),
+		#050508;
+	transition: opacity 0.4s;
+}
+.screen.hidden {
+	opacity: 0;
+	pointer-events: none;
+}
+.title {
+	font-size: clamp(48px, 10vw, 90px);
+	letter-spacing: clamp(10px, 3vw, 30px);
+	font-weight: bold;
+	text-shadow:
+		0 0 30px rgba(255, 255, 255, 0.25),
+		0 0 80px rgba(255, 255, 255, 0.08);
+}
+.subtitle {
+	font-size: clamp(14px, 2.4vw, 20px);
+	letter-spacing: clamp(8px, 2vw, 22px);
+	color: #f0f0f0;
+	text-shadow: 0 0 10px rgba(255, 200, 150, 0.12);
+	margin-top: 2px;
+}
+
+/* Paddle select cards — rough, analog feel */
+.pad-grid {
+	display: flex;
+	gap: 14px;
+	justify-content: center;
+	flex-wrap: wrap;
+	max-width: 1000px;
+	margin: 0 auto;
+}
+.pad-card {
+	width: clamp(155px, 22vw, 200px);
+	padding: 26px 16px 20px;
+	text-align: center;
+	cursor: pointer;
+	border: 1px solid #1a1a1a;
+	border-radius: 3px;
+	background: linear-gradient(170deg, #080808, #040406);
+	transition: all 0.2s ease;
+	position: relative;
+}
+.pad-card::before {
+	content: "";
+	position: absolute;
+	top: -1px;
+	left: 20%;
+	right: 20%;
+	height: 1px;
+	background: linear-gradient(90deg, transparent, var(--pc), transparent);
+	opacity: 0;
+	transition: opacity 0.3s;
+}
+.pad-card::after {
+	content: "";
+	position: absolute;
+	left: -16px;
+	right: -16px;
+	bottom: -48px;
+	height: 48px;
+	pointer-events: auto;
+}
+.pad-card:hover::before {
+	opacity: 0.4;
+}
+.pad-card:hover {
+	transform: translateY(-4px);
+	background: linear-gradient(170deg, #0c0c0c, #060608);
+	border-color: #2a2a2a;
+}
+.pad-card .cdot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	margin: 0 auto 12px;
+	transition: box-shadow 0.25s;
+	box-shadow: 0 0 4px var(--pc);
+}
+.pad-card:hover .cdot {
+	box-shadow:
+		0 0 16px var(--pc),
+		0 0 30px var(--pc);
+}
+.pad-card .pn {
+	font-size: 14px;
+	font-weight: 700;
+	letter-spacing: 3px;
+	margin-bottom: 8px;
+	color: #ddd;
+	transition: all 0.2s;
+}
+.pad-card:hover .pn {
+	color: var(--pc);
+	text-shadow: 0 0 12px color-mix(in srgb, var(--pc) 40%, transparent);
+}
+.pad-card .pd {
+	color: #f2f2f2;
+	font-size: 11px;
+	line-height: 1.7;
+	margin-bottom: 10px;
+	min-height: 36px;
+}
+.pad-card .ps {
+	border-top: 1px solid #1a1a1a;
+	padding-top: 10px;
+	transition: border-color 0.2s;
+}
+.pad-card:hover .ps {
+	border-color: color-mix(in srgb, var(--pc) 25%, transparent);
+}
+.pad-card .pa {
+	color: #f1f1f1;
+	font-size: 11px;
+	letter-spacing: 2px;
+	transition: color 0.2s;
+}
+.pad-card:hover .pa {
+	color: color-mix(in srgb, var(--pc) 80%, #aaa);
+}
+.pad-card .pi {
+	color: #f3f3f3;
+	font-size: 10px;
+	margin-top: 4px;
+}
+.pad-card .pt {
+	color: transparent;
+	font-size: 11px;
+	letter-spacing: 5px;
+	margin-top: 12px;
+	height: 16px;
+	transition: all 0.25s;
+}
+.pad-card:hover .pt {
+	color: var(--pc);
+	text-shadow: 0 0 10px color-mix(in srgb, var(--pc) 50%, transparent);
+}
+
+/* Upgrade cards — each feels weighty and deliberate */
+.card-grid {
+	display: flex;
+	gap: 18px;
+	justify-content: center;
+	flex-wrap: wrap;
+	max-width: 860px;
+	margin: 0 auto;
+}
+
+.up-card {
+	width: clamp(210px, 28vw, 280px);
+	padding: 30px 20px 24px;
+	text-align: center;
+	cursor: pointer;
+	border: 1px solid #1a1a1a;
+	border-radius: 3px;
+	background: linear-gradient(175deg, #080808 0%, #050507 100%);
+	transition: all 0.22s ease;
+	position: relative;
+}
+.up-card::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: 3px;
+	background: radial-gradient(ellipse at 50% 0%, var(--rc), transparent 70%);
+	opacity: 0;
+	transition: opacity 0.3s;
+	pointer-events: none;
+}
+.up-card:hover::after {
+	opacity: 0.04;
+}
+.up-card:hover {
+	transform: translateY(-6px);
+	background: linear-gradient(175deg, #0d0d0d 0%, #08080a 100%);
+	border-color: #333;
+}
+.up-card .ri {
+	font-size: 32px;
+	margin-bottom: 12px;
+	transition: text-shadow 0.2s;
+}
+.up-card:hover .ri {
+	text-shadow:
+		0 0 20px var(--rc),
+		0 0 40px var(--rc);
+}
+.up-card .cn {
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	margin-bottom: 8px;
+	color: #eee;
+}
+.up-card:hover .cn {
+	text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+.up-card .cd {
+	color: #fff;
+	font-size: 14px;
+	line-height: 1.6;
+	margin-bottom: 12px;
+	min-height: 24px;
+}
+.up-card .cr {
+	font-size: 10px;
+	color: #fff;
+	letter-spacing: 4px;
+	font-weight: 700;
+	padding: 8px 0 0;
+	border-top: 1px solid #1a1a1a;
+	transition: all 0.2s;
+}
+.up-card:hover .cr {
+	border-color: color-mix(in srgb, var(--rc) 30%, transparent);
+}
+.up-card .ab-tag {
+	font-size: 9px;
+	color: #fff;
+	letter-spacing: 3px;
+	padding: 4px 10px;
+	border-radius: 2px;
+	display: inline-block;
+	margin-bottom: 8px;
+}
+
+/* Enemy warning */
+.e-warn {
+	margin: 16px auto 4px;
+	padding: 16px 32px;
+	border: 1px solid #442222;
+	border-radius: 3px;
+	background: linear-gradient(175deg, #0a0404, #080303);
+	color: #fff;
+	max-width: 420px;
+	text-align: center;
+}
+
+/* Opponent cards — bold, asymmetric energy */
+.opp-grid {
+	display: flex;
+	gap: 18px;
+	justify-content: center;
+	flex-wrap: wrap;
+	max-width: 1000px;
+	margin: 0 auto;
+}
+.opp-card {
+	width: clamp(185px, 26vw, 250px);
+	padding: 24px 18px 18px;
+	text-align: center;
+	cursor: pointer;
+	border: 1px solid #1a1a1a;
+	border-radius: 3px;
+	background: linear-gradient(172deg, #080808 0%, #040406 100%);
+	transition: all 0.22s ease;
+	position: relative;
+	overflow: visible;
+}
+.opp-card::before {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: linear-gradient(90deg, transparent, var(--dc), transparent);
+	opacity: 0;
+	transition: opacity 0.3s;
+}
+.opp-card:hover::before {
+	opacity: 0.5;
+}
+.opp-card:hover {
+	transform: translateY(-5px);
+	background: linear-gradient(172deg, #0c0c0c 0%, #06060a 100%);
+	border-color: #2a2a2a;
+}
+.opp-card .opp-diff {
+	font-size: 38px;
+	font-weight: 900;
+	letter-spacing: 4px;
+	margin-bottom: 4px;
+	transition: text-shadow 0.2s;
+	font-family: "Space Mono", monospace;
+}
+.opp-card:hover .opp-diff {
+	text-shadow:
+		0 0 24px var(--dc),
+		0 0 48px var(--dc);
+}
+.opp-card .opp-name {
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 4px;
+	margin-bottom: 3px;
+	color: #ddd;
+}
+.opp-card .opp-tag {
+	font-size: 12px;
+	color: #f0f0f0;
+	letter-spacing: 3px;
+	margin-bottom: 6px;
+	min-height: 16px;
+}
+.opp-card .opp-boss {
+	font-size: 9px;
+	letter-spacing: 5px;
+	padding: 4px 12px;
+	border-radius: 2px;
+	display: inline-block;
+	margin-bottom: 6px;
+	background: rgba(255, 68, 68, 0.15);
+	color: #f66;
+	border: 1px solid rgba(255, 68, 68, 0.3);
+	text-shadow: 0 0 6px rgba(255, 68, 68, 0.3);
+}
+.opp-card .opp-stats {
+	display: flex;
+	gap: 6px;
+	justify-content: center;
+	margin: 10px 0;
+}
+.opp-card .opp-stat {
+	font-size: 10px;
+	color: #fff;
+	letter-spacing: 1.5px;
+	padding: 3px 8px;
+	border: 1px solid #222;
+	border-radius: 2px;
+	background: rgba(255, 255, 255, 0.065);
+}
+.opp-card .opp-reward-box {
+	border-top: 1px solid #1a1a1a;
+	padding-top: 14px;
+	margin-top: 10px;
+	transition: border-color 0.2s;
+}
+.opp-card:hover .opp-reward-box {
+	border-color: color-mix(in srgb, var(--dc) 25%, transparent);
+}
+.opp-card .opp-reward-label {
+	font-size: 10px;
+	letter-spacing: 4px;
+	color: #fff;
+	margin-bottom: 10px;
+}
+.opp-card .opp-tiers {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+	justify-content: center;
+}
+.opp-card .opp-tier-pill {
+	font-size: 9px;
+	color: #fff;
+	letter-spacing: 1.5px;
+	padding: 4px 8px;
+	border-radius: 2px;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	white-space: nowrap;
+	font-weight: 700;
+}
+.opp-card .opp-fight {
+	color: transparent;
+	font-size: 12px;
+	letter-spacing: 6px;
+	margin-top: 14px;
+	height: 18px;
+	transition: all 0.25s;
+}
+.opp-card:hover .opp-fight {
+	color: var(--dc);
+	text-shadow: 0 0 10px color-mix(in srgb, var(--dc) 50%, transparent);
+}
+
+.diff-badge {
+	display: inline-block;
+	padding: 5px 14px;
+	border-radius: 3px;
+	font-size: 14px;
+	font-weight: 700;
+	letter-spacing: 3px;
+	margin: 6px 0;
+}
+.btn {
+	padding: 16px 44px;
+	border: 1px solid #555;
+	border-radius: 3px;
+	color: #fff;
+	cursor: pointer;
+	font-size: 15px;
+	letter-spacing: 6px;
+	font-family: inherit;
+	background: linear-gradient(175deg, #0c0c0c, #060608);
+	transition: all 0.22s ease;
+	text-align: center;
+	display: inline-block;
+}
+.btn:hover {
+	background: linear-gradient(175deg, #181818, #0c0c0e);
+	border-color: #888;
+	box-shadow: 0 0 24px rgba(255, 255, 255, 0.06);
+	text-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+}
+.btn.sec {
+	border-color: #333;
+	color: #fff;
+	font-size: 13px;
+	letter-spacing: 4px;
+	padding: 12px 32px;
+}
+.btn.sec:hover {
+	background: linear-gradient(175deg, #101010, #080808);
+	border-color: #555;
+	box-shadow: none;
+}
+.dim {
+	color: #fff;
+	font-size: 12px;
+	letter-spacing: 2px;
+	line-height: 2.2;
+}
+.slabel {
+	color: #fff;
+	font-size: 14px;
+	letter-spacing: 8px;
+	margin-bottom: 22px;
+	text-shadow: 0 0 12px rgba(255, 255, 255, 0.24);
+}
+
+/* Dev Mode layout and scroll emphasis */
+.dev-shell {
+	text-align: center;
+	max-width: 960px;
+	padding: 0 16px;
+	max-height: 90vh;
+	overflow-y: auto;
+}
+
+.dev-columns {
+	display: flex;
+	gap: 24px;
+	justify-content: center;
+	flex-wrap: wrap;
+	align-items: flex-start;
+}
+
+.dev-col {
+	flex: 1;
+	min-width: 200px;
+	max-width: 320px;
+}
+
+.dev-head {
+	color: #fff;
+	font-size: 12px;
+	font-weight: 900;
+	letter-spacing: 6px;
+	margin-bottom: 10px;
+}
+
+.dev-scroll-box {
+	display: flex;
+	flex-direction: column;
+	color: #fff;
+	gap: 4px;
+	max-height: 330px;
+	overflow-y: auto;
+	padding: 10px;
+	border: 2px solid #ffffff;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+}
+
+.dev-scroll-box:hover {
+	border-color: #ffffff;
+	background: transparent;
+	box-shadow: none;
+}
+
+.dev-scroll-box::-webkit-scrollbar {
+	width: 8px;
+}
+
+.dev-scroll-box::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.12);
+	border-radius: 8px;
+}
+
+.dev-scroll-box::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.75);
+	border-radius: 8px;
+}
+
+/* ═══════════════════════════════════════════════
+   ANIMATIONS & POLISH
+   ═══════════════════════════════════════════════ */
+
+/* Keyframes */
+@keyframes titleFloat {
+	0%       { transform: translateY(0) scale(1); text-shadow: 0 0 30px rgba(255,255,255,0.25), 0 0 80px rgba(255,255,255,0.08); }
+	25%      { transform: translateY(-3px) scale(1.005); }
+	50%      { transform: translateY(-6px) scale(1.01); text-shadow: 0 0 50px rgba(255,255,255,0.4), 0 0 120px rgba(255,255,255,0.15), 0 0 6px rgba(255,255,255,0.2); }
+	75%      { transform: translateY(-3px) scale(1.005); }
+	100%     { transform: translateY(0) scale(1); text-shadow: 0 0 30px rgba(255,255,255,0.25), 0 0 80px rgba(255,255,255,0.08); }
+}
+@keyframes subtitleDrift {
+	0%, 100% { opacity: 0.8; letter-spacing: clamp(8px,2vw,22px); text-shadow: 0 0 10px rgba(255,200,150,0.12); }
+	50%      { opacity: 1; letter-spacing: clamp(12px,2.6vw,28px); text-shadow: 0 0 18px rgba(255,200,150,0.25); }
+}
+@keyframes cardEntrance {
+	from { opacity: 0; transform: translateY(36px) scale(0.92); filter: blur(4px); }
+	to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes screenFadeSlide {
+	from { opacity: 0; transform: translateY(16px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes glowBreath {
+	0%, 100% { box-shadow: 0 0 0 transparent; }
+	50%      { box-shadow: 0 0 18px rgba(255,255,255,0.04); }
+}
+@keyframes labelSlide {
+	from { opacity: 0; letter-spacing: 20px; transform: translateY(-8px); }
+	to   { opacity: 1; letter-spacing: 8px; transform: translateY(0); }
+}
+@keyframes victoryGlow {
+	0%, 100% { text-shadow: 0 0 30px rgba(255,220,120,0.3), 0 0 60px rgba(255,220,120,0.1); filter: brightness(1); }
+	50%      { text-shadow: 0 0 50px rgba(255,220,120,0.5), 0 0 100px rgba(255,220,120,0.2); filter: brightness(1.08); }
+}
+@keyframes dotPulse {
+	0%, 100% { transform: scale(1); opacity: 0.8; }
+	50%      { transform: scale(1.35); opacity: 1; }
+}
+@keyframes barSweep {
+	0%   { left: -40%; }
+	100% { left: 140%; }
+}
+@keyframes cardIdleFloat {
+	0%, 100% { transform: translateY(0); }
+	50%      { transform: translateY(-3px); }
+}
+@keyframes hoverWiggle {
+	0%, 100% { transform: translateY(-22px) scale(1.13) rotate(0deg); }
+	15%      { transform: translateY(-24px) scale(1.13) rotate(0.5deg); }
+	35%      { transform: translateY(-20px) scale(1.13) rotate(-0.5deg); }
+	55%      { transform: translateY(-23px) scale(1.13) rotate(0.3deg); }
+	75%      { transform: translateY(-21px) scale(1.13) rotate(-0.3deg); }
+}
+@keyframes bossPulse {
+	0%, 100% { box-shadow: 0 0 6px rgba(255,68,68,0.2); text-shadow: 0 0 6px rgba(255,68,68,0.3); }
+	50%      { box-shadow: 0 0 16px rgba(255,68,68,0.5), 0 0 30px rgba(255,68,68,0.15); text-shadow: 0 0 12px rgba(255,68,68,0.6); }
+}
+/* Particle / spark keyframes */
+@keyframes sparkRise {
+	0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.9; }
+	50%  { opacity: 1; }
+	100% { transform: translateY(var(--sy, -40px)) translateX(var(--sx, 10px)) scale(0); opacity: 0; }
+}
+@keyframes sparkOrbit {
+	0%   { transform: rotate(0deg) translateX(var(--orbit-r, 20px)) rotate(0deg) scale(1); opacity: 0.7; }
+	50%  { opacity: 1; }
+	100% { transform: rotate(360deg) translateX(var(--orbit-r, 20px)) rotate(-360deg) scale(0.3); opacity: 0; }
+}
+@keyframes crackle {
+	0%, 100% { opacity: 0; }
+	10% { opacity: 1; transform: scaleX(1); }
+	20% { opacity: 0; transform: scaleX(0.5); }
+	30% { opacity: 0.8; transform: scaleX(1.2); }
+	40% { opacity: 0; }
+	70% { opacity: 0.9; transform: scaleX(0.8); }
+	80% { opacity: 0; }
+}
+
+/* Aura particles container */
+.aura-particles {
+	position: absolute;
+	inset: -12px;
+	pointer-events: none;
+	z-index: -1;
+	overflow: visible;
+}
+.aura-spark {
+	position: absolute;
+	width: var(--spark-size, 3px);
+	height: var(--spark-size, 3px);
+	border-radius: 50%;
+	background: var(--spark-col, #fff);
+	box-shadow: 0 0 6px var(--spark-col, #fff), 0 0 12px var(--spark-col, #fff);
+	animation: sparkRise var(--spark-dur, 1s) ease-out both;
+	animation-delay: var(--spark-delay, 0s);
+	left: var(--spark-x, 50%);
+	top: var(--spark-y, 50%);
+}
+.aura-spark.orbit {
+	animation-name: sparkOrbit;
+	animation-timing-function: linear;
+	animation-iteration-count: infinite;
+}
+.aura-crackle {
+	position: absolute;
+	width: var(--crack-w, 20px);
+	height: 1.5px;
+	background: linear-gradient(90deg, transparent, var(--spark-col, #fff), transparent);
+	box-shadow: 0 0 4px var(--spark-col, #fff);
+	animation: crackle var(--crack-dur, 0.6s) ease-in-out infinite;
+	animation-delay: var(--crack-delay, 0s);
+	left: var(--crack-x, 30%);
+	top: var(--crack-y, 40%);
+	transform-origin: center;
+}
+
+/* ─── Screen Transitions ─── */
+.screen {
+	transition: opacity 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.screen:not(.hidden) > div {
+	animation: screenFadeSlide 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* ─── Title idle animations ─── */
+.title {
+	animation: titleFloat 5s ease-in-out infinite;
+	will-change: transform, text-shadow;
+}
+.subtitle {
+	animation: subtitleDrift 6s ease-in-out infinite;
+	will-change: opacity, letter-spacing;
+}
+
+/* ─── Section labels entrance ─── */
+.slabel {
+	animation: labelSlide 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) 0.2s both;
+}
+
+/* ─── Paddle cards: smooth hover rise, particles via JS ─── */
+.pad-card {
+	will-change: transform, box-shadow, filter;
+	transition: transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            border-color 0.3s ease,
+	            background 0.3s ease,
+	            filter 0.4s ease,
+	            margin 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            opacity 0.4s ease;
+}
+.pad-card.card-enter {
+	animation: cardEntrance 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	animation-delay: calc(var(--i, 0) * 0.09s);
+}
+.pad-card:hover {
+	transform: translateY(-24px) scale(1.14);
+	z-index: 10;
+	border-color: var(--pc);
+	background: linear-gradient(170deg, #0f0f0f, #0a0a12);
+	box-shadow:
+		0 0 60px color-mix(in srgb, var(--pc) 40%, transparent),
+		0 0 120px color-mix(in srgb, var(--pc) 18%, transparent),
+		0 24px 60px rgba(0, 0, 0, 0.75),
+		inset 0 0 40px color-mix(in srgb, var(--pc) 8%, transparent);
+	margin: 0 18px;
+}
+.pad-card:active {
+	transform: translateY(-8px) scale(1.02);
+	transition-duration: 0.1s;
+}
+.pad-card .cdot {
+	animation: dotPulse 3s ease-in-out infinite;
+	animation-delay: calc(var(--i, 0) * 0.4s);
+}
+.pad-card:hover .cdot {
+	animation: none;
+	transform: scale(2);
+	box-shadow: 0 0 28px var(--pc), 0 0 56px var(--pc), 0 0 90px color-mix(in srgb, var(--pc) 50%, transparent) !important;
+	transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+/* Neighbor cards dim when one is hovered */
+.pad-grid:has(.pad-card:hover) .pad-card:not(:hover) {
+	filter: brightness(0.25) blur(1.5px);
+	transform: scale(0.85);
+	opacity: 0.7;
+}
+/* "PLAY" text: always faintly visible, bright on hover */
+.pad-card .pt {
+	color: rgba(255,255,255,0.15);
+	transition: color 0.3s ease, text-shadow 0.3s ease, letter-spacing 0.3s ease;
+}
+.pad-card:hover .pt {
+	color: var(--pc);
+	text-shadow: 0 0 14px color-mix(in srgb, var(--pc) 60%, transparent);
+	letter-spacing: 8px;
+}
+
+/* ─── Upgrade cards: smooth hover rise, vibrant ─── */
+.up-card {
+	will-change: transform, box-shadow, filter;
+	transition: transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            border-color 0.3s ease,
+	            background 0.3s ease,
+	            filter 0.4s ease,
+	            margin 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            opacity 0.4s ease;
+}
+.up-card.card-enter {
+	animation: cardEntrance 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	animation-delay: calc(var(--i, 0) * 0.13s);
+}
+.up-card:hover {
+	transform: translateY(-24px) scale(1.14);
+	z-index: 10;
+	border-color: var(--rc);
+	background: linear-gradient(175deg, #111115 0%, #0b0b12 100%);
+	box-shadow:
+		0 0 60px color-mix(in srgb, var(--rc) 40%, transparent),
+		0 0 120px color-mix(in srgb, var(--rc) 18%, transparent),
+		0 24px 60px rgba(0, 0, 0, 0.75),
+		inset 0 0 40px color-mix(in srgb, var(--rc) 8%, transparent);
+	margin: 0 18px;
+}
+.up-card::after {
+	content: "";
+	position: absolute;
+	left: -16px;
+	right: -16px;
+	bottom: -48px;
+	height: 48px;
+	pointer-events: auto;
+}
+.up-card:active {
+	transform: translateY(-10px) scale(1.02);
+	transition-duration: 0.1s;
+}
+.up-card .ri {
+	transition: text-shadow 0.3s ease, transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.up-card:hover .ri {
+	transform: scale(1.4);
+	text-shadow: 0 0 40px var(--rc), 0 0 80px var(--rc);
+}
+.up-card .cn {
+	transition: text-shadow 0.3s ease, color 0.3s ease;
+}
+.up-card:hover .cn {
+	color: #fff;
+	text-shadow: 0 0 16px rgba(255,255,255,0.35);
+}
+.up-card .cd {
+	transition: color 0.3s ease;
+}
+.up-card:hover .cd {
+	color: #ccc;
+}
+.up-card .cr {
+	transition: text-shadow 0.3s ease;
+}
+.up-card:hover .cr {
+	text-shadow: 0 0 12px var(--rc);
+}
+/* Neighbor cards dim */
+.card-grid:has(.up-card:hover) .up-card:not(:hover) {
+	filter: brightness(0.25) blur(1.5px);
+	transform: scale(0.85);
+	opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════
+   OPPONENT SELECTION — CLEAN & DISTINCT
+   No wiggle. Smooth slide-up, clean glow, polished.
+   ═══════════════════════════════════════════════ */
+.opp-grid {
+	gap: 22px;
+}
+.opp-card {
+	width: clamp(200px, 28vw, 270px);
+	padding: 28px 20px 22px;
+	will-change: transform, box-shadow;
+	transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            border-color 0.35s ease,
+	            background 0.35s ease,
+	            filter 0.35s ease;
+	border-radius: 6px;
+	background: linear-gradient(175deg, #0a0a0c 0%, #060609 100%);
+	border: 1px solid #1e1e24;
+}
+.opp-card.card-enter {
+	animation: cardEntrance 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	animation-delay: calc(var(--i, 0) * 0.14s);
+}
+.opp-card::before {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 10%;
+	right: 10%;
+	height: 2px;
+	background: linear-gradient(90deg, transparent, var(--dc), transparent);
+	opacity: 0;
+	transition: opacity 0.4s ease, left 0.4s ease, right 0.4s ease;
+	border-radius: 0 0 6px 6px;
+}
+.opp-card:hover::before {
+	opacity: 0.7;
+	left: 5%;
+	right: 5%;
+}
+.opp-card:hover {
+	transform: translateY(-10px);
+	z-index: 10;
+	border-color: color-mix(in srgb, var(--dc) 50%, #1e1e24);
+	background: linear-gradient(175deg, #0e0e12 0%, #09090e 100%);
+	box-shadow:
+		0 0 35px color-mix(in srgb, var(--dc) 22%, transparent),
+		0 16px 45px rgba(0, 0, 0, 0.55);
+}
+.opp-card:active {
+	transform: translateY(-5px);
+	transition-duration: 0.1s;
+}
+/* Hover zone below opp cards to prevent flicker */
+.opp-card::after {
+	content: "";
+	position: absolute;
+	left: -12px;
+	right: -12px;
+	bottom: -36px;
+	height: 36px;
+	pointer-events: auto;
+}
+/* Difficulty number — clean scale, no wiggle */
+.opp-card .opp-diff {
+	font-size: 44px;
+	transition: text-shadow 0.35s ease, transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1), color 0.35s ease;
+}
+.opp-card:hover .opp-diff {
+	transform: scale(1.1);
+	text-shadow: 0 0 25px var(--dc), 0 0 50px color-mix(in srgb, var(--dc) 40%, transparent);
+}
+/* Enemy name */
+.opp-card .opp-name {
+	font-size: 16px;
+	letter-spacing: 5px;
+	transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.opp-card:hover .opp-name {
+	color: #fff;
+	text-shadow: 0 0 8px rgba(255,255,255,0.15);
+}
+/* Tag */
+.opp-card .opp-tag {
+	transition: color 0.3s ease;
+}
+.opp-card:hover .opp-tag {
+	color: #ddd;
+}
+/* FIGHT text — clean reveal */
+.opp-card .opp-fight {
+	color: rgba(255,255,255,0.08);
+	font-size: 12px;
+	letter-spacing: 6px;
+	margin-top: 16px;
+	height: 20px;
+	font-weight: 700;
+	transition: color 0.4s ease, text-shadow 0.4s ease, letter-spacing 0.4s ease;
+}
+.opp-card:hover .opp-fight {
+	color: var(--dc);
+	text-shadow: 0 0 12px color-mix(in srgb, var(--dc) 50%, transparent);
+	letter-spacing: 9px;
+}
+/* Boss badge: pulse */
+.opp-card .opp-boss {
+	animation: bossPulse 2s ease-in-out infinite;
+	border-radius: 3px;
+}
+/* Stats */
+.opp-card .opp-stat {
+	transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+}
+.opp-card:hover .opp-stat {
+	background: rgba(255, 255, 255, 0.09);
+	border-color: #444;
+	transform: translateY(-1px);
+}
+/* Tier pills */
+.opp-tier-pill {
+	transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.opp-card:hover .opp-tier-pill {
+	transform: translateY(-1px);
+	box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+}
+/* Reward box */
+.opp-card .opp-reward-box {
+	transition: border-color 0.3s ease;
+}
+.opp-card:hover .opp-reward-box {
+	border-color: color-mix(in srgb, var(--dc) 30%, transparent);
+}
+/* Neighbors dim slightly — but less than pad/up cards */
+.opp-grid:has(.opp-card:hover) .opp-card:not(:hover) {
+	filter: brightness(0.65);
+}
+
+/* ─── Buttons: polish ─── */
+.btn {
+	transition: all 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+	position: relative;
+	overflow: hidden;
+}
+.btn::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: -40%;
+	width: 30%;
+	height: 100%;
+	background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.3s;
+}
+.btn:hover::after {
+	opacity: 1;
+	animation: barSweep 0.8s ease-out;
+}
+.btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 0 28px rgba(255,255,255,0.08), 0 6px 20px rgba(0,0,0,0.3);
+}
+.btn:active {
+	transform: translateY(0);
+	transition-duration: 0.08s;
+}
+
+/* ─── Victory screen ─── */
+@keyframes vicStarBurst {
+	0%   { transform: scale(0) rotate(0deg); opacity: 0; }
+	50%  { opacity: 1; }
+	100% { transform: scale(1) rotate(360deg); opacity: 1; }
+}
+@keyframes vicRaysSpin {
+	from { transform: rotate(0deg); }
+	to   { transform: rotate(360deg); }
+}
+@keyframes vicTitleReveal {
+	0%   { letter-spacing: 40px; opacity: 0; transform: scale(0.8); filter: blur(8px); }
+	60%  { letter-spacing: 22px; opacity: 1; filter: blur(0); }
+	100% { letter-spacing: 18px; transform: scale(1); }
+}
+@keyframes vicSubFade {
+	from { opacity: 0; transform: translateY(12px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+#vic-screen > div {
+	position: relative;
+}
+#vic-screen .vic-rays {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 400px;
+	height: 400px;
+	margin: -200px 0 0 -200px;
+	pointer-events: none;
+	animation: vicRaysSpin 20s linear infinite;
+	opacity: 0.08;
+	z-index: 0;
+}
+#vic-screen .vic-rays div {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 2px;
+	height: 200px;
+	background: linear-gradient(to top, transparent, var(--vic-col, #ffe088));
+	transform-origin: bottom center;
+}
+#vic-title {
+	font-size: clamp(48px, 8vw, 72px);
+	letter-spacing: 18px;
+	margin-bottom: 8px;
+	animation: victoryGlow 3s ease-in-out infinite, vicTitleReveal 1.2s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	position: relative;
+	z-index: 1;
+}
+#vic-screen .vic-sub {
+	animation: vicSubFade 0.6s ease 0.8s both;
+	position: relative;
+	z-index: 1;
+}
+#vic-screen .vic-stats {
+	display: flex;
+	gap: 18px;
+	justify-content: center;
+	flex-wrap: wrap;
+	margin: 18px 0 24px;
+	animation: vicSubFade 0.6s ease 1.0s both;
+	position: relative;
+	z-index: 1;
+}
+#vic-screen .vic-stat {
+	background: rgba(255,255,255,0.04);
+	border: 1px solid rgba(255,255,255,0.08);
+	border-radius: 4px;
+	padding: 10px 18px;
+	text-align: center;
+}
+#vic-screen .vic-stat-val {
+	font-size: 22px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	margin-bottom: 2px;
+}
+#vic-screen .vic-stat-label {
+	font-size: 7px;
+	letter-spacing: 4px;
+	color: #999;
+	text-transform: uppercase;
+}
+#vic-screen .btn {
+	animation: vicSubFade 0.6s ease 1.3s both;
+	position: relative;
+	z-index: 1;
+}
+
+/* ─── Game Over screen ─── */
+@keyframes goTitleGlitch {
+	0%, 100% { text-shadow: 0 0 24px rgba(255,80,80,0.2); transform: translate(0); }
+	10%      { text-shadow: -2px 0 #ff4444, 2px 0 #4444ff; transform: translate(-1px, 1px); }
+	20%      { text-shadow: 2px 0 #ff4444, -2px 0 #4444ff; transform: translate(1px, -1px); }
+	30%      { text-shadow: 0 0 24px rgba(255,80,80,0.2); transform: translate(0); }
+}
+@keyframes goStatSlide {
+	from { opacity: 0; transform: translateX(-10px); }
+	to   { opacity: 1; transform: translateX(0); }
+}
+#go-screen > div {
+	animation: screenFadeSlide 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+#go-screen .go-title {
+	font-size: clamp(36px, 6vw, 54px);
+	letter-spacing: 8px;
+	margin-bottom: 8px;
+	animation: goTitleGlitch 4s ease-in-out infinite;
+	color: #ff6666;
+}
+#go-screen .go-stats {
+	display: flex;
+	gap: 14px;
+	justify-content: center;
+	flex-wrap: wrap;
+	margin: 14px 0 20px;
+}
+#go-screen .go-stat {
+	background: rgba(255,60,60,0.04);
+	border: 1px solid rgba(255,60,60,0.1);
+	border-radius: 4px;
+	padding: 8px 14px;
+	text-align: center;
+	animation: goStatSlide 0.4s ease calc(0.3s + var(--i, 0) * 0.1s) both;
+}
+#go-screen .go-stat-val {
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	color: #ffaaaa;
+}
+#go-screen .go-stat-label {
+	font-size: 7px;
+	letter-spacing: 4px;
+	color: #886;
+	text-transform: uppercase;
+}
+
+/* ─── Enemy warning: subtle pulse ─── */
+.e-warn {
+	animation: glowBreath 3s ease-in-out infinite;
+}
+
+/* ─── Difficulty badge: entrance ─── */
+.diff-badge {
+	animation: cardEntrance 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+</style>
+</head>
+<body>
+<div id="crt-scan"></div><div id="crt-edge"></div>
+<canvas id="cv"></canvas>
+
+<div id="menu-screen" class="screen">
+  <div style="text-align:center;max-width:920px;padding:0 20px;">
+    <div style="margin-bottom:46px;"><div class="title">PONG</div><div class="subtitle">ROGUE</div></div>
+    <div class="slabel">CHOOSE YOUR PADDLE</div>
+    <div class="pad-grid" id="pad-grid"></div>
+    <div class="dim" style="margin-top:36px;">W/S MOVE &middot; A/D SHIFT &middot; Q ABILITY &middot; FIRST TO 5 &middot; 12 WAVES &middot; ENEMY UPGRADES TOO</div>
+	<div id="dev-btn" style="margin-top:20px;cursor:pointer;color:#e8e8e8;font-size:10px;letter-spacing:4px;transition:color 0.2s;" onmouseenter="this.style.color='#fff'" onmouseleave="this.style.color='#e8e8e8'" onclick="SFX.sel();showDevScreen();">&#9881; DEV MODE</div>
+  </div>
+</div>
+
+<div id="cards-screen" class="screen hidden">
+  <div style="text-align:center;max-width:760px;padding:0 16px;">
+	<div style="color:#fff;font-size:12px;letter-spacing:6px;margin-bottom:6px;">WAVE CLEAR</div>
+    <div id="upgrade-title" style="font-size:clamp(24px,4vw,34px);letter-spacing:10px;margin-bottom:6px;text-shadow:0 0 18px rgba(255,255,255,0.18);">SELECT YOUR REWARD</div>
+    <div id="rank-display"></div>
+    <div id="diff-display" style="margin:4px 0;"></div>
+    <div id="e-warn-box"></div>
+	<div id="next-wave-info" style="color:#fff;font-size:11px;letter-spacing:2px;margin:10px 0 18px;"></div>
+    <div class="card-grid" id="card-grid"></div>
+  </div>
+</div>
+
+<div id="go-screen" class="screen hidden">
+  <div style="text-align:center;max-width:420px;">
+    <div class="go-title">GAME<br>OVER</div>
+    <div id="go-info" style="color:#fff;font-size:13px;letter-spacing:3px;margin-bottom:6px;"></div>
+    <div id="go-buffs" style="color:#ffe0e0;font-size:11px;margin-bottom:14px;"></div>
+    <div class="go-stats" id="go-stats"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center;margin-top:18px;">
+      <div class="btn" id="go-retry">RETRY</div>
+      <div class="btn sec" id="go-menu">CHANGE PADDLE</div>
+    </div>
+  </div>
+</div>
+
+<div id="vic-screen" class="screen hidden">
+  <div style="text-align:center;position:relative;">
+    <div class="vic-rays" id="vic-rays"></div>
+    <div class="vic-sub" id="vic-sub">12 WAVES CLEARED</div>
+    <div id="vic-title" class="vic-title-text">VICTORY</div>
+    <div id="vic-info" style="color:#fff;font-size:13px;letter-spacing:3px;margin-bottom:14px;"></div>
+    <div class="vic-stats" id="vic-stats"></div>
+    <div class="btn" id="vic-again" style="margin-top:18px;">PLAY AGAIN</div>
+  </div>
+</div>
+
+<div id="opp-screen" class="screen hidden">
+  <div style="text-align:center;max-width:920px;padding:0 16px;">
+	<div style="color:#fff;font-size:11px;letter-spacing:6px;margin-bottom:6px;">WAVE <span id="opp-wave-num"></span></div>
+    <div style="font-size:clamp(22px,4vw,32px);letter-spacing:10px;margin-bottom:4px;text-shadow:0 0 18px rgba(255,255,255,0.18);">CHOOSE OPPONENT</div>
+    <div id="opp-enemy-warn" style="margin:6px 0;"></div>
+	<div style="color:#fff;font-size:11px;letter-spacing:3px;margin:4px 0 18px;">harder fights, better loot</div>
+    <div class="opp-grid" id="opp-grid"></div>
+	<div style="color:#fff;font-size:10px;letter-spacing:2px;margin-top:22px;">RISK MORE &middot; EARN MORE</div>
+  </div>
+</div>
+
+<div id="dev-screen" class="screen hidden">
+	<div class="dev-shell">
+    <div style="font-size:clamp(28px,5vw,42px);letter-spacing:12px;margin-bottom:4px;text-shadow:0 0 18px rgba(255,100,100,0.18);">DEV MODE</div>
+	<div style="color:#fff;font-size:10px;letter-spacing:5px;margin-bottom:16px;">TEST ANY PADDLE vs ANY ENEMY</div>
+		<div class="dev-columns">
+			<div class="dev-col">
+				<div class="dev-head">PADDLES</div>
+				<div id="dev-pad-grid" class="dev-scroll-box"></div>
+      </div>
+			<div class="dev-col">
+				<div class="dev-head">ABILITIES</div>
+				<div id="dev-enemy-grid" class="dev-scroll-box"></div>
+      </div>
+			<div class="dev-col">
+				<div class="dev-head">ENEMIES / STAGE-WAVE</div>
+				<div id="dev-opts" class="dev-scroll-box"></div>
+        <div class="btn" id="dev-go" style="margin-top:16px;width:100%;">LAUNCH TEST</div>
+        <div class="btn sec" id="dev-back" style="margin-top:6px;width:100%;">BACK</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
 /* Consolidated single-file runtime: game-data + audio + fool + main */
 
 // ═══ CONSTANTS ═══
@@ -2060,13 +3296,6 @@ function getServePauseForSpeed(spd) {
 	return lerp(minPause, maxPause, norm);
 }
 
-function getEnemyOpenLaneY(g) {
-	const topOpen = Math.max(0, g.ey - g.eH / 2);
-	const botOpen = Math.max(0, GH - (g.ey + g.eH / 2));
-	if (topOpen >= botOpen) return clamp(12 + topOpen * 0.55, 14, GH - 14);
-	return clamp(GH - (12 + botOpen * 0.55), 14, GH - 14);
-}
-
 function resetBall(g, dir) {
 	// Reset to the base speed from start of wave (no carry-over)
 	const baseSpd = g.waveBaseBs || g.bs;
@@ -2117,8 +3346,6 @@ function resetBall(g, dir) {
 function newGame(pid, wv, sv, eUps, oppCfg) {
 	const pad = PADDLES.find((p) => p.id === pid);
 	const cfg = oppCfg || waveCfg(wv);
-	const ownsAngelSteps =
-		(sv?.ownedAbilityIds || []).includes("angel_steps") || (sv?.angelSteps ?? 0) > 0;
 	const am = sv?.aiMod ?? 1;
 	const rankSpdMul = getBaseBallSpeedForDiff(cfg.diff) / BASE_SPD;
 	const bs = (sv?.bs ?? BASE_SPD) * rankSpdMul;
@@ -2211,7 +3438,7 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		phantomFire: sv?.phantomFire ?? false,
 		stormStrike: sv?.stormStrike ?? false,
 		_stormStrikeCount: 0,
-		angelSteps: ownsAngelSteps ? Math.max(2, sv?.angelSteps ?? 0) : 0,
+		angelSteps: sv?.angelSteps ?? 0,
 		paradoxEngine: sv?.paradoxEngine ?? false,
 		_paradoxTick: 0,
 		nullField: sv?.nullField ?? false,
@@ -2354,9 +3581,6 @@ function newGame(pid, wv, sv, eUps, oppCfg) {
 		// Visual enhancement: floating score pop-ups and ability flashes
 		scorePops: [],
 		abilFlash: 0,
-		eAbilAlertT: 0,
-		eAbilAlertName: "",
-		eAbilAlertCol: [1,0.3,0.3],
 		lastCombo: 0,
 		ownedAbilityIds: new Set(sv?.ownedAbilityIds || []),
 		rankSpdMul,
@@ -2598,7 +3822,6 @@ function update(dt) {
 	if (g.scoreFlash > 0) g.scoreFlash -= dt * 1.85;
 	if (g.chromaShift > 0) g.chromaShift -= dt * 4.2;
 	if (g.abilFlash > 0) g.abilFlash -= dt * 7;
-	if (g.eAbilAlertT > 0) g.eAbilAlertT -= dt;
 	// Update floating score pop-ups
 	for (let i = g.scorePops.length - 1; i >= 0; i--) {
 		const sp = g.scorePops[i];
@@ -3375,15 +4598,15 @@ function update(dt) {
 			g.bvy = lerp(g.bvy, curveTarget, dt * 3.5);
 		}
 		// Homing: smooth drift toward gap in enemy defense
-		if (g.homing && g.bvx > 0) {
-			const gap = getEnemyOpenLaneY(g);
+		if (g.homing && g.bvx > 0 && g.bx > GW * 0.4) {
+			const gap = g.by < g.ey ? g.ey - g.eH / 2 - 20 : g.ey + g.eH / 2 + 20;
 			const curSpd = Math.hypot(g.bvx, g.bvy);
 			const speedScale = clamp(curSpd / BASE_SPD, 0.85, 2.8);
-			const laneProg = clamp((g.bx - GW * 0.25) / (GW * 0.75), 0, 1);
-			const laneScale = 1.0 + laneProg;
-			const homingForce = 160 * speedScale * laneScale;
+			const laneProg = clamp((g.bx - GW * 0.4) / (GW * 0.6), 0, 1);
+			const laneScale = 0.9 + laneProg * 0.9;
+			const homingForce = 120 * speedScale * laneScale;
 			const targetVy = Math.sign(gap - g.by) * homingForce;
-			g.bvy = lerp(g.bvy, g.bvy + targetVy * dt, 0.9);
+			g.bvy = lerp(g.bvy, g.bvy + targetVy * dt, 0.92);
 		}
 		// Dead Zone: strong pull toward enemy goal
 		if (g.singularity && g.bvx > 0 && Math.abs(g.spin) <= 5) {
@@ -3393,12 +4616,12 @@ function update(dt) {
 			g.bvx += 120 * dt;
 		}
 		// Redirect: gradual curve toward enemy goal after player return
-		if (g.redirect && g.bvx > 0 && !g._redirectUsed && g.bx > GW * 0.18 && g.bx < GW * 0.82) {
-			const goalY = getEnemyOpenLaneY(g);
+		if (g.redirect && g.bvx > 0 && !g._redirectUsed && g.bx > GW * 0.25 && g.bx < GW * 0.6) {
+			const goalY = GH / 2;
 			const curveStr = 160;
 			g.bvy = lerp(g.bvy, g.bvy + Math.sign(goalY - g.by) * curveStr * dt, 0.85);
 		}
-		if (g.redirect && g.bvx > 0 && !g._redirectUsed && g.bx >= GW * 0.82) {
+		if (g.redirect && g.bvx > 0 && !g._redirectUsed && g.bx >= GW * 0.6) {
 			g._redirectUsed = true;
 		}
 	}
@@ -3591,8 +4814,6 @@ function update(dt) {
 			// Redirect: after return, ball curves once toward enemy goal
 			if (g.redirect) {
 				g._redirectUsed = false; // arm the redirect for this return
-				const goalY = getEnemyOpenLaneY(g);
-				g.bvy += Math.sign(goalY - g.by) * Math.min(70, g.ballSpd * 0.14);
 			}
 			// Delusio: enemy loses track of ball for 0.5s
 			if (g.delusio) {
@@ -5047,7 +6268,7 @@ function draw(ctx, cw, ch) {
 	{
 		const labels = [];
 		if (g.curveNext && g.bvx > 0) labels.push("CURVE");
-		if (g.homing && g.bvx > 0) labels.push("HOMING");
+		if (g.homing && g.bvx > 0 && g.bx > GW * 0.4) labels.push("HOMING");
 		if (g.redirect && g.bvx > 0 && !g._redirectUsed) labels.push("REDIRECT");
 		if (labels.length) {
 			ctx.font = '9px "Share Tech Mono",monospace';
@@ -6022,8 +7243,8 @@ function draw(ctx, cw, ch) {
 		ctx.globalAlpha = 1;
 	}
 	// Homing: tracking crosshair on target
-	if (g.homing && g.bvx > 0) {
-		const gap = getEnemyOpenLaneY(g);
+	if (g.homing && g.bvx > 0 && g.bx > GW * 0.4) {
+		const gap = g.by < g.ey ? g.ey - g.eH / 2 - 20 : g.ey + g.eH / 2 + 20;
 		ctx.globalAlpha = 0.1 + 0.05 * Math.sin(g.t * 8);
 		ctx.strokeStyle = col.p;
 		ctx.lineWidth = 0.5;
@@ -6114,14 +7335,12 @@ function draw(ctx, cw, ch) {
 		ctx.moveTo(px, py);
 		const simDt = 0.005;
 		for (let i = 0; i < 650; i++) {
-			// Simulate spin curve
 			if (simSpinCurveT > 0) {
 				simSpinCurveT -= simDt;
 				const ease = simSpinCurveT / 0.7;
 				vy += simSpinDir * 280 * ease * simDt;
 				vy = clamp(vy, -g.ballSpd * 1.5, g.ballSpd * 1.5);
 			}
-			// Simulate continuous spin
 			if (Math.abs(simSpin) > 15) {
 				vy += simSpin * 2 * simDt;
 				vy = clamp(vy, -g.ballSpd * 1.5, g.ballSpd * 1.5);
@@ -6130,7 +7349,6 @@ function draw(ctx, cw, ch) {
 			} else {
 				simSpin = 0;
 			}
-			// Simulate curveNext
 			if (simCurveNext && vx > 0) {
 				const curveTarget = Math.sign(vy || 1) * g.ballSpd * 1.8;
 				vy = lerp(vy, curveTarget, simDt * 3.5);
@@ -6712,7 +7930,7 @@ function draw(ctx, cw, ch) {
 			ctx.fillText("CD " + g.eAbilCD.toFixed(1) + "s", hudX, hudY + 13);
 		}
 
-		// Cooldown bar next to enemy paddle (keep the small indicator too)
+		// Cooldown bar next to enemy paddle
 		const barX = EX + 14;
 		const barH = 36;
 		const barW = 3;
@@ -6764,11 +7982,9 @@ function draw(ctx, cw, ch) {
 		g._eAbilFlash -= dt;
 		const bAlpha = Math.min(g._eAbilFlash, 0.6);
 		if (bAlpha > 0.02) {
-			// Red warning stripe across top
 			ctx.globalAlpha = bAlpha * 0.5;
 			ctx.fillStyle = "#330000";
 			ctx.fillRect(0, 0, GW, 28);
-			// Warning text
 			ctx.globalAlpha = bAlpha;
 			ctx.fillStyle = "#ff4444";
 			ctx.font = 'bold 12px "Share Tech Mono",monospace';
@@ -8323,3 +9539,6 @@ function loop(now) {
 buildPadGrid();
 showScreen("menu-screen");
 requestAnimationFrame(loop);
+</script>
+</body>
+</html>
