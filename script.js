@@ -2022,6 +2022,302 @@ let curScreen = "menu",
 	keysDown = {},
 	chosenOppCfg = null;
 
+// ═══ TUTORIAL SYSTEM ═══
+const TUT_STEPS = [
+	{
+		id: "move",
+		title: "MOVEMENT",
+		body: "Use W / S to move your paddle up and down.",
+		keys: ["W", "S"],
+		keyLabel: "W / S  —  MOVE UP & DOWN",
+		highlight: "paddle",
+		trigger(g, tut) { return g.startPause <= 0; },
+		done(g, tut) { return Math.abs(g.py - tut.startPy) >= 40; },
+	},
+	{
+		id: "shift",
+		title: "HORIZONTAL SHIFT",
+		body: "Use A / D to shift forward or back.",
+		keys: ["A", "D"],
+		keyLabel: "A / D  —  SHIFT LEFT & RIGHT",
+		highlight: "paddle",
+		noBlock: true,
+		trigger(g, tut) { return true; },
+		done(g, tut) { return Math.abs(g.px - PX_HOME) >= 18; },
+	},
+	{
+		id: "precision",
+		title: "PRECISION MODE",
+		body: "Hold SPACE for slower, precise movement.",
+		keys: ["SPACE"],
+		keyLabel: "HOLD SPACE  —  HALF SPEED",
+		highlight: "paddle",
+		trigger(g, tut) { return tut.rallyHits >= 1; },
+		done(g, tut) { return tut.spaceHeldMoving >= 0.5; },
+	},
+	{
+		id: "spin",
+		title: "SPIN",
+		body: "Move while hitting the ball to add curve.",
+		keys: ["W", "S"],
+		keyLabel: "MOVE WHILE HITTING",
+		highlight: "ball",
+		noBlock: true,
+		trigger(g, tut) { return tut.rallyHits >= 2; },
+		done(g, tut) { return tut.spinApplied; },
+	},
+	{
+		id: "rally",
+		title: "RALLY SPEED",
+		body: "Each hit speeds up the ball.",
+		keys: [],
+		keyLabel: "WATCH THE BALL ACCELERATE",
+		highlight: "hud",
+		noBlock: true,
+		trigger(g, tut) { return tut.rallyHits >= 3; },
+		done(g, tut) { return tut.autoTimer >= 3.0; },
+		autoAdvance: true,
+	},
+	{
+		id: "ability",
+		title: "PADDLE ABILITIES",
+		body: "Some paddles have abilities — press Q.",
+		keys: ["Q"],
+		keyLabel: "Q  —  ACTIVATE ABILITY",
+		highlight: null,
+		noBlock: true,
+		trigger(g, tut) { return true; },
+		done(g, tut) { return tut.autoTimer >= 3.5; },
+		autoAdvance: true,
+	},
+	{
+		id: "cards",
+		title: "UPGRADE CARDS",
+		body: "After each win, choose a card to upgrade your paddle!",
+		keys: [],
+		keyLabel: "",
+		highlight: null,
+		noBlock: false,
+		trigger(g, tut) { return true; },
+		done(g, tut) { return tut.autoTimer >= 0.1; },
+		autoAdvance: true,
+	},
+];
+
+let tut = null;
+
+function newTutorial() {
+	return {
+		active: true,
+		stepIdx: 0,
+		phase: "intro",   // "intro" | "wait" | "overlay" | "active" | "check" | "done"
+		introAlpha: 0,
+		startPy: GH / 2,
+		startPx: PX_HOME,
+		rallyHits: 0,
+		spaceHeldMoving: 0,
+		spinApplied: false,
+		autoTimer: 0,
+		cardPicked: false,
+		overlayAlpha: 0,
+		hintAlpha: 0,
+		completedSteps: [],
+		completeFlash: 0,
+		doneOverlayT: 0,
+		cardTooltip: false,
+		checkTimer: 0,
+		checkAlpha: 0,
+		checkStepTitle: "",
+		overlayShowT: 0,
+	};
+}
+
+function startTutorial(pid) {
+	const usePad = pid || "classic";
+	const enemy = ENEMIES.find(e => e.id === "basic") || ENEMIES[0];
+	const tutCfg = {
+		wv: 1,
+		boss: false,
+		diff: "F",
+		aiSpd: 55,
+		aiReact: 0.04,
+		eH: BASE_PAD_H,
+		enemy,
+		trickAng: false,
+		ghost: false,
+		chaos: false,
+		jitter: false,
+	};
+	enemy.mod(tutCfg);
+	tutCfg.aiSpd = 55;
+	tutCfg.aiReact = 0.04;
+	padId = usePad;
+	wave = 1;
+	savedState = null;
+	enemyUps = [];
+	chosenOppCfg = tutCfg;
+	g = newGame(usePad, 1, null, [], tutCfg);
+	g.winScore = 999;
+	g.bs *= 0.72;
+	g.ballSpd *= 0.72;
+	g.waveBaseBs = g.bs;
+	g.rallyBase = g.bs;
+	chosenOppCfg = null;
+	tut = newTutorial();
+	tut.startPy = g.py;
+	tut.startPx = g.px;
+	showScreen(null);
+}
+
+function tutStep() {
+	if (!tut || !tut.active) return null;
+	return TUT_STEPS[tut.stepIdx] || null;
+}
+
+function advanceTutStep() {
+	if (!tut || !tut.active) return;
+	const step = tutStep();
+	if (step) tut.completedSteps.push(step.id);
+	// Enter "check" phase — show green checkmark before moving on
+	tut.checkStepTitle = step ? step.title : "";
+	tut.checkTimer = 1.2; // duration of checkmark display
+	tut.checkAlpha = 0;
+	tut.phase = "check";
+	tut.completeFlash = 0.4;
+	tone(660, 0.06, "sine", 0.05);
+	tone(880, 0.04, "sine", 0.04, 60);
+}
+
+function dismissTutOverlay() {
+	if (!tut) return false;
+	if (tut.overlayShowT < 0.5) return false;
+	if (tut.phase === "intro") {
+		tut.phase = "wait";
+		tut.overlayShowT = 0;
+		tone(660, 0.03, "square", 0.035);
+		return true;
+	}
+	if (tut.phase !== "overlay") return false;
+	tut.phase = "active";
+	tut.hintAlpha = 1;
+	tut.startPy = g ? g.py : GH / 2;
+	tut.startPx = g ? g.px : PX_HOME;
+	tut.spaceHeldMoving = 0;
+	tut.autoTimer = 0;
+	tut.overlayShowT = 0;
+	tone(660, 0.03, "square", 0.035);
+	return true;
+}
+
+function skipTutorial() {
+	if (!tut || !tut.active) return;
+	finishTutorial();
+}
+
+function finishTutorial() {
+	if (!tut) return;
+	tut.active = false;
+	tut.doneOverlayT = 2.5;
+	_tutorialDone = true;
+	const tip = document.getElementById("tut-card-tip");
+	if (tip) tip.remove();
+	showScreen(null);
+	if (!g) {
+		g = newGame(padId || "classic", 1, null, [], {
+			wv: 1, boss: false, diff: "F", aiSpd: 55, aiReact: 0.04,
+			eH: BASE_PAD_H, enemy: ENEMIES[0],
+			trickAng: false, ghost: false, chaos: false, jitter: false,
+		});
+		g.done = true;
+		g.result = "win";
+		g.doneT = 99;
+	}
+}
+
+function updateTutorial(dt) {
+	if (!tut || !tut.active || !g) return;
+	const step = tutStep();
+	if (!step) return;
+
+	if (tut.completeFlash > 0) tut.completeFlash -= dt * 2;
+
+	// Intro phase — fade in, physics paused
+	if (tut.phase === "intro") {
+		tut.introAlpha = Math.min(1, tut.introAlpha + dt * 5);
+		tut.overlayShowT += dt;
+		return;
+	}
+
+	// Overlay phase — fade in, physics paused
+	if (tut.phase === "overlay") {
+		tut.overlayAlpha = Math.min(1, tut.overlayAlpha + dt * 5);
+		tut.overlayShowT += dt;
+		return;
+	}
+
+	// Check phase — show green checkmark, then advance to next step
+	if (tut.phase === "check") {
+		tut.checkAlpha = Math.min(1, tut.checkAlpha + dt * 6);
+		tut.checkTimer -= dt;
+		if (tut.checkTimer <= 0) {
+			// Actually advance to next step
+			tut.autoTimer = 0;
+			tut.hintAlpha = 0;
+			tut.stepIdx++;
+			if (tut.stepIdx >= TUT_STEPS.length) {
+				finishTutorial();
+				return;
+			}
+			tut.phase = "wait";
+			tut.overlayAlpha = 0;
+			tut.startPy = g ? g.py : GH / 2;
+			tut.startPx = g ? g.px : PX_HOME;
+			tut.spaceHeldMoving = 0;
+			tut.spinApplied = false;
+		}
+		return;
+	}
+
+	// Wait phase — silently wait for trigger, physics run
+	if (tut.phase === "wait") return;
+
+	// Active phase — hint shown, check done condition
+	if (tut.phase === "active") {
+		if (keysDown[" "] && (keysDown["w"] || keysDown["s"] || keysDown["arrowup"] || keysDown["arrowdown"])) {
+			tut.spaceHeldMoving += dt;
+		}
+		if (step.autoAdvance) tut.autoTimer += dt;
+		tut.hintAlpha = Math.min(1, tut.hintAlpha + dt * 4);
+
+		if (step.done(g, tut)) {
+			advanceTutStep();
+			return;
+		}
+	}
+}
+
+function checkTutTrigger(dt) {
+	if (!tut || !tut.active || !g) return;
+	const step = tutStep();
+	if (!step) return;
+	if (tut.phase !== "wait") return;
+
+	if (step.trigger(g, tut)) {
+		if (step.noBlock) {
+			// Skip overlay, go straight to active hint
+			tut.phase = "active";
+			tut.hintAlpha = 0;
+			tut.startPy = g.py;
+			tut.startPx = g.px;
+		} else {
+			// Show blocking overlay, pause physics
+			tut.phase = "overlay";
+			tut.overlayAlpha = 0;
+			tut.overlayShowT = 0;
+		}
+	}
+}
+
 // Trim sparks to avoid runaway CPU usage
 function addSparks(g, x, y, n = 8, sp = 120, col = null) {
 	for (let i = 0; i < n; i++) {
@@ -2549,6 +2845,19 @@ function isKleinLossState(g) {
 // ═══ UPDATE ═══
 function update(dt) {
 	if (!g) return;
+	// Tutorial: done overlay countdown
+	if (tut && !tut.active && tut.doneOverlayT > 0) {
+		tut.doneOverlayT -= dt;
+		if (tut.doneOverlayT <= 0) {
+			tut = null;
+			g = null;
+			savedState = null;
+			wave = 1;
+			enemyUps = [];
+			showScreen("menu-screen");
+		}
+		return;
+	}
 	if (g.done) {
 		g.doneT += dt;
 		if (isKleinLossState(g)) {
@@ -2579,6 +2888,22 @@ function update(dt) {
 		}
 		return;
 	}
+	// Tutorial: block physics during intro/overlay, tick check phase
+	if (tut && tut.active) {
+		if (tut.phase === "intro") {
+			updateTutorial(dt);
+			return;
+		}
+		if (tut.phase === "check") {
+			updateTutorial(dt);
+			// Don't return — let physics keep running during checkmark
+		}
+		checkTutTrigger(dt);
+		if (tut.phase === "overlay") {
+			updateTutorial(dt);
+			return;
+		}
+	}
 	g.t += dt;
 	if (g.goalLockT > 0) g.goalLockT -= dt;
 	if (g.abCD > 0) g.abCD -= dt;
@@ -2599,6 +2924,7 @@ function update(dt) {
 	if (g.chromaShift > 0) g.chromaShift -= dt * 4.2;
 	if (g.abilFlash > 0) g.abilFlash -= dt * 7;
 	if (g.eAbilAlertT > 0) g.eAbilAlertT -= dt;
+	if (g._eAbilFlash > 0) g._eAbilFlash -= dt;
 	// Update floating score pop-ups
 	for (let i = g.scorePops.length - 1; i >= 0; i--) {
 		const sp = g.scorePops[i];
@@ -2637,7 +2963,13 @@ function update(dt) {
 			g.foolAscPending ||
 			(g.foolDialogActive && g.foolDialogBlocking) ||
 			g.foolIntroTopT > 0);
-	if (g.startPause > 0 && !holdFoolServe) {
+	if (holdFoolServe) {
+		g.foolServeHoldT = (g.foolServeHoldT || 0) + dt;
+	} else {
+		g.foolServeHoldT = 0;
+	}
+	const forceServe = g.foolServeHoldT > 8;
+	if (g.startPause > 0 && (!holdFoolServe || forceServe)) {
 		g.startPause -= dt;
 		if (g.startPause <= 0) {
 			const spd = g.ballSpd; // Already set by resetBall based on previous rally
@@ -2910,7 +3242,7 @@ function update(dt) {
 			if (sid === "judgment") {
 				g.foolJudgmentTick -= dt;
 				if (g.foolJudgmentTick <= 0 && g.startPause <= 0) {
-					g.abCD = Math.max(g.abCD, g.pad.cd * g.cdMul * 0.75);
+					g.abCD = Math.max(g.abCD, (g.pad?.cd ?? 8) * g.cdMul * 0.75);
 					g.pStunT = Math.max(g.pStunT, 0.14);
 					g.flash = Math.max(g.flash, 0.12);
 					g.flashCol = [0.98, 0.84, 0.9];
@@ -3403,6 +3735,15 @@ function update(dt) {
 		}
 	}
 
+	// NaN safety: reset ball if physics produced invalid values
+	if (isNaN(g.bx) || isNaN(g.by) || isNaN(g.bvx) || isNaN(g.bvy)) {
+		g.bx = GW / 2; g.by = GH / 2;
+		g.bvx = 0; g.bvy = 0;
+		g.startPause = 0.5; g.startPauseMax = 0.5;
+		g.pendingDir = Math.random() > 0.5 ? 1 : -1;
+		g.pendingVy = rng(-160, 160);
+	}
+
 	const bs2 = BALL_SZ / 2,
 		col = PCOL[g.padId];
 	if (g.by - bs2 < 0) {
@@ -3413,9 +3754,11 @@ function update(dt) {
 		// Add 3% of base speed
 		const addedSpd = g.bs * 0.03;
 		const s = Math.hypot(g.bvx, g.bvy);
-		const newSpd = s + addedSpd;
-		g.bvx *= newSpd / s;
-		g.bvy *= newSpd / s;
+		if (s > 0.01) {
+			const newSpd = s + addedSpd;
+			g.bvx *= newSpd / s;
+			g.bvy *= newSpd / s;
+		}
 		g.ballSpd += addedSpd;
 		g.rallyBase += addedSpd;
 		ricoB(g);
@@ -3428,9 +3771,11 @@ function update(dt) {
 		// Add 3% of base speed
 		const addedSpd = g.bs * 0.03;
 		const s = Math.hypot(g.bvx, g.bvy);
-		const newSpd = s + addedSpd;
-		g.bvx *= newSpd / s;
-		g.bvy *= newSpd / s;
+		if (s > 0.01) {
+			const newSpd = s + addedSpd;
+			g.bvx *= newSpd / s;
+			g.bvy *= newSpd / s;
+		}
 		g.ballSpd += addedSpd;
 		g.rallyBase += addedSpd;
 		ricoB(g);
@@ -3561,6 +3906,11 @@ function update(dt) {
 			const finalAng = Math.atan2(g.bvy, g.bvx); // used by afterimage
 			g.combo++;
 			applyRallyHitSpeed(g);
+			// Tutorial: track rally hits and spin
+			if (tut && tut.active) {
+				tut.rallyHits++;
+				if (Math.abs(g.spin) > 50) tut.spinApplied = true;
+			}
 			g.flash = Math.max(g.flash, 0.18);
 			g.hitFlash = 1;
 			g.shake = Math.max(g.shake, 0.03);
@@ -3573,10 +3923,14 @@ function update(dt) {
 				g._masterHitBoosted = true;
 				g.bs = Math.min(g.bs * 1.2, MAX_BALL_SPD); // permanent 20% base increase per rally hit
 				const boosted = g.ballSpd * 3;
-				g.bvx =
-					((Math.sign(g.bvx) * Math.abs(g.bvx)) / Math.hypot(g.bvx, g.bvy)) *
-					boosted;
-				g.bvy = (g.bvy / Math.hypot(g.bvx, g.bvy)) * boosted;
+				const msH = Math.hypot(g.bvx, g.bvy);
+				if (msH > 0.01) {
+					g.bvx = (Math.sign(g.bvx) * Math.abs(g.bvx) / msH) * boosted;
+					g.bvy = (g.bvy / msH) * boosted;
+				} else {
+					g.bvx = boosted;
+					g.bvy = 0;
+				}
 				g.shake = Math.max(g.shake, 0.1);
 				g.chromaShift = Math.max(g.chromaShift, 0.3);
 			}
@@ -4795,8 +5149,8 @@ function update(dt) {
 						g.vpX = EX;
 						g.vpY = g.ey;
 						// Reverse ball at 2x speed + push player paddle + brief freeze
-						g.bvx = -Math.abs(g.bvx) * 2;
-						g.bvy += (Math.random() - 0.5) * 300;
+						g.bvx = clamp(-Math.abs(g.bvx) * 2, -MAX_BALL_SPD, MAX_BALL_SPD);
+						g.bvy = clamp(g.bvy + (Math.random() - 0.5) * 300, -MAX_BALL_SPD, MAX_BALL_SPD);
 						g.py += g.by < GH / 2 ? 160 : -160;
 						g.py = clamp(g.py, g.ph / 2, GH - g.ph / 2);
 						g.pStunT = Math.max(g.pStunT, 0.5); // freeze player briefly
@@ -4855,11 +5209,14 @@ function update(dt) {
 			}
 		}
 	}
+	// Tutorial: update monitoring and track conditions
+	if (tut && tut.active) updateTutorial(dt);
 }
 
 function ricoB(gg) {
 	if (!gg.rico) return;
 	const s = Math.hypot(gg.bvx, gg.bvy);
+	if (s < 0.01) return;
 	const n = Math.min(s * 1.05, MAX_BALL_SPD);
 	gg.bvx *= n / s;
 	gg.bvy *= n / s;
@@ -5034,7 +5391,7 @@ function draw(ctx, cw, ch) {
 
 	// Difficulty badge in top center (suppressed for The Fool for cleaner aura presentation)
 	if (g.cfg.enemy.id !== "thefool") {
-		ctx.font = 'bold 10px "Share Tech Mono",monospace';
+		ctx.font = 'bold 12px "Share Tech Mono",monospace';
 		ctx.textAlign = "center";
 		ctx.textBaseline = "top";
 		ctx.fillStyle = dCol;
@@ -5050,12 +5407,12 @@ function draw(ctx, cw, ch) {
 		if (g.homing && g.bvx > 0) labels.push("HOMING");
 		if (g.redirect && g.bvx > 0 && !g._redirectUsed) labels.push("REDIRECT");
 		if (labels.length) {
-			ctx.font = '9px "Share Tech Mono",monospace';
+			ctx.font = 'bold 10px "Share Tech Mono",monospace';
 			ctx.textAlign = "center";
 			ctx.textBaseline = "top";
 			const ca = 0.5 + 0.3 * Math.sin(g.t * 5);
 			ctx.fillStyle = "rgba(140,255,180," + ca + ")";
-			ctx.fillText(labels.join(" + "), GW / 2, 16);
+			ctx.fillText(labels.join(" + "), GW / 2, 18);
 		}
 	}
 	const showFoolDialogBlocking =
@@ -6683,39 +7040,39 @@ function draw(ctx, cw, ch) {
 
 		// Ability name + status text (top-right HUD area)
 		const hudX = GW - 12;
-		const hudY = 18;
+		const hudY = 14;
 		ctx.textAlign = "right";
 		ctx.textBaseline = "top";
 
 		// Ability name label
-		ctx.fillStyle = isActive ? "#ff6666" : (eaRdy ? "#ff8888" : "#666");
-		ctx.font = 'bold 9px "Share Tech Mono",monospace';
+		ctx.fillStyle = isActive ? "#ff6666" : (eaRdy ? "#ff8888" : "#777");
+		ctx.font = 'bold 13px "Share Tech Mono",monospace';
 		ctx.fillText(g.eAbil.icon + " " + g.eAbil.name, hudX, hudY);
 
 		// Status line: CD timer or ACTIVE or READY
-		ctx.font = '8px "Share Tech Mono",monospace';
+		ctx.font = 'bold 11px "Share Tech Mono",monospace';
 		if (isActive) {
 			const durLeft = g.eAbilActive > 0 ? g.eAbilActive : (g.eAbilPhase === "channel" ? g.ltChannel : 0);
 			ctx.fillStyle = "#ff4444";
 			ctx.shadowColor = "rgba(255,60,60,0.6)";
-			ctx.shadowBlur = 6;
-			ctx.fillText("ACTIVE " + durLeft.toFixed(1) + "s", hudX, hudY + 13);
+			ctx.shadowBlur = 8;
+			ctx.fillText("ACTIVE " + durLeft.toFixed(1) + "s", hudX, hudY + 18);
 			ctx.shadowBlur = 0;
 		} else if (eaRdy) {
 			const pulse = 0.6 + 0.4 * Math.sin(g.t * 5);
 			ctx.globalAlpha = pulse;
 			ctx.fillStyle = "#ff6644";
-			ctx.fillText("READY", hudX, hudY + 13);
+			ctx.fillText("READY", hudX, hudY + 18);
 			ctx.globalAlpha = 1;
 		} else {
-			ctx.fillStyle = "#555";
-			ctx.fillText("CD " + g.eAbilCD.toFixed(1) + "s", hudX, hudY + 13);
+			ctx.fillStyle = "#666";
+			ctx.fillText("CD " + g.eAbilCD.toFixed(1) + "s", hudX, hudY + 18);
 		}
 
-		// Cooldown bar next to enemy paddle (keep the small indicator too)
+		// Cooldown bar next to enemy paddle
 		const barX = EX + 14;
-		const barH = 36;
-		const barW = 3;
+		const barH = 50;
+		const barW = 5;
 		ctx.fillStyle = "#151515";
 		ctx.fillRect(barX, g.ey - barH/2, barW, barH);
 		if (isActive) {
@@ -6730,11 +7087,11 @@ function draw(ctx, cw, ch) {
 			ctx.fillRect(barX, g.ey + barH/2 - barH * eaFill, barW, barH * eaFill);
 			ctx.shadowBlur = 0;
 		}
-		ctx.fillStyle = eaRdy ? "#f88" : "#554";
-		ctx.font = '6px "Share Tech Mono",monospace';
+		ctx.fillStyle = eaRdy ? "#f88" : "#665";
+		ctx.font = '10px "Share Tech Mono",monospace';
 		ctx.textAlign = "left";
 		ctx.textBaseline = "middle";
-		ctx.fillText(g.eAbil.icon, barX + 6, g.ey);
+		ctx.fillText(g.eAbil.icon, barX + 8, g.ey);
 
 		// show warden special ability text / cooldown
 		if (g.cfg.enemy.id === "warden") {
@@ -6761,7 +7118,6 @@ function draw(ctx, cw, ch) {
 
 	// Enemy ability activation banner
 	if (g._eAbilFlash > 0) {
-		g._eAbilFlash -= dt;
 		const bAlpha = Math.min(g._eAbilFlash, 0.6);
 		if (bAlpha > 0.02) {
 			// Red warning stripe across top
@@ -6800,19 +7156,19 @@ function draw(ctx, cw, ch) {
 		const spdPct = Math.round(((g.ballSpd / (g.bs || 1)) - 1) * 100);
 		const spdA = g.rallyHits >= 4 ? 0.5 + 0.2 * Math.sin(g.t * 6) : 0.35;
 		ctx.fillStyle = col.g + spdA + ")";
-		ctx.font = '8px "Share Tech Mono",monospace';
+		ctx.font = 'bold 10px "Share Tech Mono",monospace';
 		ctx.textAlign = "right";
 		ctx.textBaseline = "alphabetic";
-		ctx.fillText("SPD +" + spdPct + "%", GW - 14, GH - 20);
+		ctx.fillText("SPD +" + spdPct + "%", GW - 14, GH - 22);
 	}
-	ctx.fillStyle = "#665";
-	ctx.font = '7.5px "Share Tech Mono",monospace';
+	ctx.fillStyle = "#778";
+	ctx.font = '10px "Share Tech Mono",monospace';
 	ctx.textAlign = "center";
 	ctx.textBaseline = "alphabetic";
 	const eL =
-		g.cfg.enemy.id !== "basic" ? " " + g.cfg.enemy.tag + g.cfg.enemy.name : "";
-	const eAL = g.eAbil.id !== "none" ? " [" + g.eAbil.name + "]" : "";
-	if (g.cfg.enemy.id !== "thefool")
+		g.cfg?.enemy?.id !== "basic" ? " " + (g.cfg.enemy?.tag || "") + (g.cfg.enemy?.name || "") : "";
+	const eAL = g.eAbil?.id !== "none" ? " [" + (g.eAbil?.name || "") + "]" : "";
+	if (g.cfg?.enemy?.id !== "thefool")
 		ctx.fillText(
 			"W" +
 				g.cfg.wv +
@@ -6823,33 +7179,33 @@ function draw(ctx, cw, ch) {
 			GW / 2,
 			GH - 4,
 		);
-	const cdMax = g.pad.cd * (g.cdMul ?? 1),
+	const cdMax = (g.pad?.cd ?? 999) * (g.cdMul ?? 1),
 		rdy = g.abCD <= 0,
-		fill = rdy ? 1 : 1 - g.abCD / cdMax;
+		fill = rdy ? 1 : 1 - g.abCD / (cdMax || 1);
 	if (g.padId !== "classic") {
 		ctx.fillStyle = "#151515";
-		ctx.fillRect(14, GH - 32, 100, 3);
+		ctx.fillRect(14, GH - 32, 100, 4);
 		if (rdy) {
 			ctx.shadowColor = col.g + "0.4)";
 			ctx.shadowBlur = 6;
 		}
-		ctx.fillStyle = rdy ? col.p : "#333";
-		ctx.fillRect(14, GH - 32, 100 * fill, 3);
+		ctx.fillStyle = rdy ? col.p : "#444";
+		ctx.fillRect(14, GH - 32, 100 * fill, 4);
 		ctx.shadowBlur = 0;
 	}
-	ctx.fillStyle = rdy ? "#ccc" : "#555";
-	ctx.font = '8px "Share Tech Mono",monospace';
+	ctx.fillStyle = rdy ? "#ddd" : "#666";
+	ctx.font = 'bold 11px "Share Tech Mono",monospace';
 	ctx.textAlign = "left";
 	if (g.padId !== "classic") {
 		ctx.fillText(
-			"[Q] " + g.pad.abil + (rdy ? " RDY" : " " + g.abCD.toFixed(1) + "s"),
+			"[Q] " + (g.pad?.abil || "ABILITY") + (rdy ? " RDY" : " " + g.abCD.toFixed(1) + "s"),
 			14,
-			GH - 37,
+			GH - 38,
 		);
 	}
 	if (g.combo >= 3) {
 		ctx.fillStyle = col.g + (0.4 + 0.25 * Math.sin(g.t * 5)) + ")";
-		ctx.font = '10px "Share Tech Mono",monospace';
+		ctx.font = 'bold 12px "Share Tech Mono",monospace';
 		ctx.textAlign = "right";
 		ctx.textBaseline = "alphabetic";
 		ctx.fillText(g.combo + "x", GW - 14, GH - 6);
@@ -6929,7 +7285,7 @@ function draw(ctx, cw, ch) {
 		const ringR = lerp(40, 2.6, arcT);
 		const ringA = 0.12 + 0.26 * (1 - arcT);
 		const ringX = g.bx;
-		const ringY = g.by - lerp(70, 0, descendT);
+		const ringY = g.by;
 		ctx.save();
 		ctx.globalAlpha = Math.max(0.06, ringA * 0.45);
 		ctx.strokeStyle = col.p;
@@ -7167,12 +7523,378 @@ function draw(ctx, cw, ch) {
 		ctx.globalAlpha = 1;
 	}
 
+	// ══ TUTORIAL OVERLAY ══
+	if (tut && tut.active) {
+		const step = tutStep();
+
+		// Intro screen — shown before any steps
+		if (tut.phase === "intro") {
+			const ia = Math.min(1, tut.introAlpha);
+			ctx.globalAlpha = 0.7 * ia;
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, GW, GH);
+
+			// Subtle accent line
+			ctx.globalAlpha = 0.15 * ia;
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(GW / 2 - 60, GH / 2 - 56, 120, 1);
+
+			ctx.globalAlpha = ia;
+			ctx.fillStyle = "#fff";
+			ctx.font = 'bold 38px "Share Tech Mono",monospace';
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.shadowColor = "rgba(255,255,255,0.25)";
+			ctx.shadowBlur = 20;
+			ctx.fillText("TUTORIAL", GW / 2, GH / 2 - 34);
+			ctx.shadowBlur = 0;
+
+			// Accent line below title
+			ctx.globalAlpha = 0.15 * ia;
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(GW / 2 - 60, GH / 2 - 12, 120, 1);
+
+			ctx.globalAlpha = 0.65 * ia;
+			ctx.fillStyle = "#b0b2c0";
+			ctx.font = '15px "Share Tech Mono",monospace';
+			ctx.fillText("Learn the basics before your first match", GW / 2, GH / 2 + 10);
+
+			const pulse = 0.4 + 0.6 * Math.sin((g.t || 0) * 3);
+			ctx.globalAlpha = pulse * 0.55 * ia;
+			ctx.fillStyle = "#8890a0";
+			ctx.font = '13px "Share Tech Mono",monospace';
+			ctx.fillText("PRESS ANY KEY TO START", GW / 2, GH / 2 + 48);
+
+			ctx.globalAlpha = 0.3 * ia;
+			ctx.fillStyle = "#667";
+			ctx.font = '11px "Share Tech Mono",monospace';
+			ctx.fillText("ESC TO SKIP", GW / 2, GH / 2 + 72);
+			ctx.globalAlpha = 1;
+		}
+
+		// Blocking overlay panel
+		if (step && tut.phase === "overlay") {
+			const oa = Math.min(1, tut.overlayAlpha);
+			// Dark background
+			ctx.globalAlpha = 0.5 * oa;
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, GW, GH);
+
+			// Highlight
+			if (step.highlight === "paddle" && oa > 0.3) {
+				ctx.globalAlpha = 0.1 * oa;
+				ctx.fillStyle = "#fff";
+				ctx.shadowColor = "rgba(255,255,255,0.4)";
+				ctx.shadowBlur = 18;
+				ctx.fillRect(g.px - PAD_W / 2 - 10, g.py - g.ph / 2 - 10, PAD_W + 20, g.ph + 20);
+				ctx.shadowBlur = 0;
+			} else if (step.highlight === "ball" && oa > 0.3) {
+				ctx.globalAlpha = 0.12 * oa;
+				ctx.fillStyle = "#fff";
+				ctx.shadowColor = "rgba(255,255,255,0.4)";
+				ctx.shadowBlur = 18;
+				ctx.beginPath();
+				ctx.arc(g.bx, g.by, 20, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.shadowBlur = 0;
+			}
+
+			// --- Measure content to compute dynamic panel height ---
+			const panelW = 380;
+			const pad = 22;
+			const maxTextW = panelW - 48;
+			let cy = 0; // cursor tracking content height
+
+			// Step counter height
+			cy += pad + 11 + 8; // top pad + font + gap
+
+			// Title height
+			cy += 26 + 12; // font + gap
+
+			// Body word wrap measurement
+			ctx.font = '13px "Share Tech Mono",monospace';
+			const words = step.body.split(" ");
+			let bodyLines = [], curLine = "";
+			for (const w of words) {
+				const test = curLine ? curLine + " " + w : w;
+				if (ctx.measureText(test).width > maxTextW && curLine) {
+					bodyLines.push(curLine);
+					curLine = w;
+				} else curLine = test;
+			}
+			if (curLine) bodyLines.push(curLine);
+			const lineH = 18;
+			cy += bodyLines.length * lineH + 12;
+
+			// Keys height
+			const hasKeys = step.keys.length > 0;
+			if (hasKeys) {
+				cy += 28 + 6; // keycap + gap
+				if (step.keyLabel) cy += 14; // label
+				cy += 10;
+			}
+
+			// Enter prompt + ESC
+			cy += 12 + 8 + 10 + pad; // enter + gap + esc + bottom pad
+
+			const panelH = cy;
+			const panelX = GW / 2 - panelW / 2;
+			const panelY = GH / 2 - panelH / 2;
+
+			// Panel background
+			ctx.globalAlpha = 0.92 * oa;
+			ctx.fillStyle = "rgba(8,8,14,0.97)";
+			ctx.strokeStyle = "rgba(255,255,255,0.08)";
+			ctx.lineWidth = 1;
+			const r = 8;
+			ctx.beginPath();
+			ctx.moveTo(panelX + r, panelY);
+			ctx.lineTo(panelX + panelW - r, panelY);
+			ctx.quadraticCurveTo(panelX + panelW, panelY, panelX + panelW, panelY + r);
+			ctx.lineTo(panelX + panelW, panelY + panelH - r);
+			ctx.quadraticCurveTo(panelX + panelW, panelY + panelH, panelX + panelW - r, panelY + panelH);
+			ctx.lineTo(panelX + r, panelY + panelH);
+			ctx.quadraticCurveTo(panelX, panelY + panelH, panelX, panelY + panelH - r);
+			ctx.lineTo(panelX, panelY + r);
+			ctx.quadraticCurveTo(panelX, panelY, panelX + r, panelY);
+			ctx.closePath();
+			ctx.fill();
+			ctx.stroke();
+
+			// Top accent line
+			ctx.globalAlpha = 0.25 * oa;
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(panelX + panelW * 0.2, panelY, panelW * 0.6, 1);
+
+			// --- Draw content top-down ---
+			let dy = panelY + pad;
+
+			// Step counter
+			ctx.globalAlpha = 0.35 * oa;
+			ctx.fillStyle = "#8890a0";
+			ctx.font = '10px "Share Tech Mono",monospace';
+			ctx.textAlign = "center";
+			ctx.textBaseline = "top";
+			ctx.fillText(`STEP ${tut.stepIdx + 1} / ${TUT_STEPS.length}`, GW / 2, dy);
+			dy += 11 + 8;
+
+			// Title
+			ctx.globalAlpha = oa;
+			ctx.fillStyle = "#fff";
+			ctx.font = 'bold 22px "Share Tech Mono",monospace';
+			ctx.textBaseline = "top";
+			ctx.shadowColor = "rgba(255,255,255,0.15)";
+			ctx.shadowBlur = 12;
+			ctx.fillText(step.title, GW / 2, dy);
+			ctx.shadowBlur = 0;
+			dy += 26 + 12;
+
+			// Body
+			ctx.globalAlpha = 0.8 * oa;
+			ctx.fillStyle = "#c0c2d0";
+			ctx.font = '13px "Share Tech Mono",monospace';
+			ctx.textBaseline = "top";
+			for (let i = 0; i < bodyLines.length; i++) {
+				ctx.fillText(bodyLines[i], GW / 2, dy + i * lineH);
+			}
+			dy += bodyLines.length * lineH + 12;
+
+			// Keys
+			if (hasKeys) {
+				const keyW = step.keys.length === 1 && step.keys[0] === "SPACE" ? 58 : 28;
+				const keyH = 26;
+				const gap = 8;
+				const totalW = step.keys.length * keyW + (step.keys.length - 1) * gap;
+				let kx = GW / 2 - totalW / 2;
+				ctx.textBaseline = "middle";
+				for (const k of step.keys) {
+					const thisW = k === "SPACE" ? 58 : keyW;
+					ctx.globalAlpha = 0.88 * oa;
+					ctx.fillStyle = "rgba(30,30,42,0.95)";
+					ctx.strokeStyle = "rgba(110,110,140,0.45)";
+					ctx.lineWidth = 1;
+					const kr = 4;
+					ctx.beginPath();
+					ctx.moveTo(kx + kr, dy);
+					ctx.lineTo(kx + thisW - kr, dy);
+					ctx.quadraticCurveTo(kx + thisW, dy, kx + thisW, dy + kr);
+					ctx.lineTo(kx + thisW, dy + keyH - kr);
+					ctx.quadraticCurveTo(kx + thisW, dy + keyH, kx + thisW - kr, dy + keyH);
+					ctx.lineTo(kx + kr, dy + keyH);
+					ctx.quadraticCurveTo(kx, dy + keyH, kx, dy + keyH - kr);
+					ctx.lineTo(kx, dy + kr);
+					ctx.quadraticCurveTo(kx, dy, kx + kr, dy);
+					ctx.closePath();
+					ctx.fill();
+					ctx.stroke();
+					ctx.globalAlpha = oa;
+					ctx.fillStyle = "#eef";
+					ctx.font = 'bold 13px "Share Tech Mono",monospace';
+					ctx.textAlign = "center";
+					ctx.fillText(k, kx + thisW / 2, dy + keyH / 2 + 1);
+					kx += thisW + gap;
+				}
+				dy += keyH + 6;
+				if (step.keyLabel) {
+					ctx.globalAlpha = 0.45 * oa;
+					ctx.fillStyle = "#a0a2b0";
+					ctx.font = '10px "Share Tech Mono",monospace';
+					ctx.textAlign = "center";
+					ctx.textBaseline = "top";
+					ctx.fillText(step.keyLabel, GW / 2, dy);
+					dy += 14;
+				}
+				dy += 10;
+			}
+
+			// Enter prompt
+			const pulse = 0.4 + 0.6 * Math.sin((g.t || 0) * 3);
+			ctx.globalAlpha = pulse * 0.55 * oa;
+			ctx.fillStyle = "#8890a0";
+			ctx.font = '12px "Share Tech Mono",monospace';
+			ctx.textAlign = "center";
+			ctx.textBaseline = "top";
+			ctx.fillText("PRESS ANY KEY", GW / 2, dy);
+			dy += 14 + 8;
+
+			// ESC skip
+			ctx.globalAlpha = 0.3 * oa;
+			ctx.fillStyle = "#667";
+			ctx.font = '10px "Share Tech Mono",monospace';
+			ctx.fillText("ESC TO SKIP", GW / 2, dy);
+
+			ctx.globalAlpha = 1;
+		}
+		// Check phase — green checkmark feedback
+		if (tut.phase === "check") {
+			const ca = Math.min(1, tut.checkAlpha);
+			const fadeOut = Math.max(0, Math.min(1, tut.checkTimer / 0.3));
+			const a = ca * fadeOut;
+			if (a > 0.01) {
+				// Pill with checkmark + step title
+				const checkText = "\u2713  " + tut.checkStepTitle;
+				ctx.font = 'bold 16px "Share Tech Mono",monospace';
+				const tw = ctx.measureText(checkText).width;
+				const cpW = tw + 40, cpH = 36;
+				const cpX = GW / 2 - cpW / 2, cpY = GH / 2 - cpH / 2;
+				const cpr = cpH / 2;
+				// Dark bg pill
+				ctx.globalAlpha = 0.85 * a;
+				ctx.fillStyle = "rgba(8,20,10,0.94)";
+				ctx.beginPath();
+				ctx.moveTo(cpX + cpr, cpY);
+				ctx.lineTo(cpX + cpW - cpr, cpY);
+				ctx.arc(cpX + cpW - cpr, cpY + cpr, cpr, -Math.PI / 2, Math.PI / 2);
+				ctx.lineTo(cpX + cpr, cpY + cpH);
+				ctx.arc(cpX + cpr, cpY + cpr, cpr, Math.PI / 2, -Math.PI / 2);
+				ctx.closePath();
+				ctx.fill();
+				ctx.strokeStyle = "rgba(80,220,100,0.25)";
+				ctx.lineWidth = 1;
+				ctx.stroke();
+				// Green checkmark text
+				ctx.globalAlpha = a;
+				ctx.fillStyle = "#5ddf70";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.shadowColor = "rgba(80,220,100,0.4)";
+				ctx.shadowBlur = 10;
+				ctx.fillText(checkText, GW / 2, GH / 2);
+				ctx.shadowBlur = 0;
+				ctx.globalAlpha = 1;
+			}
+		}
+		// Active phase hint bar at top
+		if (step && tut.phase === "active") {
+			const ha = Math.min(1, tut.hintAlpha);
+			if (ha > 0.01) {
+				const hintText = step.keyLabel || step.body;
+				ctx.font = 'bold 14px "Share Tech Mono",monospace';
+				const tw = ctx.measureText(hintText).width;
+				const hpW = tw + 36, hpH = 30;
+				const hpX = GW / 2 - hpW / 2, hpY = 6;
+				ctx.globalAlpha = 0.75 * ha;
+				ctx.fillStyle = "rgba(8,8,14,0.92)";
+				// pill shape
+				const pr = hpH / 2;
+				ctx.beginPath();
+				ctx.moveTo(hpX + pr, hpY);
+				ctx.lineTo(hpX + hpW - pr, hpY);
+				ctx.arc(hpX + hpW - pr, hpY + pr, pr, -Math.PI / 2, Math.PI / 2);
+				ctx.lineTo(hpX + pr, hpY + hpH);
+				ctx.arc(hpX + pr, hpY + pr, pr, Math.PI / 2, -Math.PI / 2);
+				ctx.closePath();
+				ctx.fill();
+				ctx.strokeStyle = "rgba(255,255,255,0.08)";
+				ctx.lineWidth = 1;
+				ctx.stroke();
+				ctx.globalAlpha = 0.9 * ha;
+				ctx.fillStyle = "#dde";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.fillText(hintText, GW / 2, hpY + hpH / 2);
+				ctx.globalAlpha = 1;
+			}
+		}
+		// Persistent skip hint (bottom-right, always visible during tutorial gameplay)
+		if (tut.phase === "wait" || tut.phase === "active" || tut.phase === "check") {
+			ctx.globalAlpha = 0.28;
+			ctx.fillStyle = "#667";
+			ctx.font = '11px "Share Tech Mono",monospace';
+			ctx.textAlign = "right";
+			ctx.textBaseline = "bottom";
+			ctx.fillText("ESC  SKIP TUTORIAL", GW - 12, GH - 10);
+			ctx.globalAlpha = 1;
+		}
+		// Completion flash
+		if (tut.completeFlash > 0) {
+			ctx.globalAlpha = tut.completeFlash * 0.08;
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(0, 0, GW, GH);
+			ctx.globalAlpha = 1;
+		}
+	}
+	// Tutorial complete overlay
+	if (tut && !tut.active && tut.doneOverlayT > 0) {
+		const da = Math.min(1, tut.doneOverlayT / 0.8);
+		ctx.globalAlpha = 0.55 * da;
+		ctx.fillStyle = "#000";
+		ctx.fillRect(0, 0, GW, GH);
+
+		// Accent line above
+		ctx.globalAlpha = 0.15 * da;
+		ctx.fillStyle = "#fff";
+		ctx.fillRect(GW / 2 - 80, GH / 2 - 30, 160, 1);
+
+		ctx.globalAlpha = da;
+		ctx.fillStyle = "#fff";
+		ctx.font = 'bold 32px "Share Tech Mono",monospace';
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.shadowColor = "rgba(255,255,255,0.2)";
+		ctx.shadowBlur = 16;
+		ctx.fillText("TUTORIAL COMPLETE", GW / 2, GH / 2 - 6);
+		ctx.shadowBlur = 0;
+
+		// Accent line below
+		ctx.globalAlpha = 0.15 * da;
+		ctx.fillStyle = "#fff";
+		ctx.fillRect(GW / 2 - 80, GH / 2 + 16, 160, 1);
+
+		ctx.globalAlpha = 0.55 * da;
+		ctx.fillStyle = "#b0b2c0";
+		ctx.font = '13px "Share Tech Mono",monospace';
+		ctx.fillText("GOOD LUCK", GW / 2, GH / 2 + 34);
+		ctx.globalAlpha = 1;
+	}
+
 	ctx.restore();
 }
 
 // ═══ SCREEN MANAGEMENT ═══
 const $ = (id) => document.getElementById(id);
 function showScreen(id) {
+	stopCardPhysics();
 	[
 		"menu-screen",
 		"cards-screen",
@@ -7185,6 +7907,11 @@ function showScreen(id) {
 	});
 	$("cv").style.display = id === null ? "block" : "none";
 	curScreen = id;
+	// Auto-start card physics for the menu (pad-grid is pre-built)
+	if (id === "menu-screen") {
+		initCardPhysics($("pad-grid"));
+		updateSkipTutBtn();
+	}
 }
 
 function startWave(pid, wn) {
@@ -7204,7 +7931,7 @@ function doAbility() {
 		(g.foolDialogActive && g.foolDialogBlocking)
 	)
 		return;
-	const cd = g.pad.cd * g.cdMul,
+	const cd = (g.pad?.cd ?? 8) * g.cdMul,
 		col = PCOL[g.padId];
 	if (g.padId === "classic") return; // Standard has no ability
 	const cast = () => {
@@ -7328,9 +8055,25 @@ function doAbility() {
 
 function handleContinue() {
 	if (!g || !g.done) return;
+	// Block during tutorial completion overlay
+	if (tut && !tut.active && tut.doneOverlayT > 0) return;
 	const result = g.result,
 		lives = g.lives;
 	if (g.kleinEndActive && !g.kleinEndReady) return;
+	// Tutorial: win triggers upgrade screen with tooltip, then ends tutorial
+	if (tut && tut.active && result === "win") {
+		savedState = saveGame(g);
+		const clearedDiff = g.cfg.diff;
+		g = null;
+		wave = 2;
+		const rewardTier = DIFF_REWARD[clearedDiff] || "common";
+		curCards = getCardsForDiff(clearedDiff, 3, savedState?.ownedAbilityIds || []);
+		curEUp = null; // No enemy upgrade in tutorial
+		curDiff = clearedDiff;
+		tut.cardTooltip = true;
+		showUpgradeScreen(rewardTier, clearedDiff);
+		return;
+	}
 	if (result === "win") {
 		savedState = saveGame(g);
 		const clearedDiff = g.cfg.diff;
@@ -7348,6 +8091,12 @@ function handleContinue() {
 		curDiff = clearedDiff;
 		showUpgradeScreen(rewardTier, clearedDiff);
 	} else {
+		// Tutorial: on loss, just restart the tutorial match
+		if (tut && tut.active) {
+			g = null;
+			startTutorial();
+			return;
+		}
 		g = null;
 		if (lives <= 0) showGameOver();
 		else {
@@ -7514,7 +8263,152 @@ function clearCardAura(card) {
 	if (p) p.remove();
 }
 
+// ═══ CARD PHYSICS: Float, Wiggle, Magnetic Repulsion ═══
+let _cardPhysRAF = null;
+let _cardPhysCards = [];
+let _cardPhysStart = 0;
+
+function initCardPhysics(container) {
+	stopCardPhysics();
+	const cards = Array.from(container.children);
+	if (!cards.length) return;
+	_cardPhysCards = cards.map((el, i) => ({
+		el,
+		floatPhase: Math.random() * Math.PI * 2,
+		floatSpeed: 0.7 + Math.random() * 0.5,
+		floatAmp: 4 + Math.random() * 4,
+		wigglePhase: Math.random() * Math.PI * 2,
+		wiggleSpeed: 1.2 + Math.random() * 0.8,
+		wiggleAmp: 1.2 + Math.random() * 1.0,
+		pushX: 0,
+		pushY: 0,
+		baseIdx: i,
+		hovered: false,
+	}));
+	_cardPhysStart = performance.now();
+	cards.forEach((el) => {
+		el.addEventListener("mouseenter", _cardPhysHoverIn);
+		el.addEventListener("mouseleave", _cardPhysHoverOut);
+	});
+	// Wait for entrance animation to finish, then remove card-enter so
+	// animation-fill-mode stops overriding JS transforms
+	setTimeout(() => {
+		cards.forEach((el) => el.classList.remove("card-enter"));
+	}, 700);
+	_cardPhysRAF = requestAnimationFrame(_cardPhysTick);
+}
+
+function _cardPhysHoverIn(e) {
+	const entry = _cardPhysCards.find((c) => c.el === e.currentTarget);
+	if (entry) {
+		entry.hovered = true;
+		// Clear inline transform so CSS :hover rule takes effect
+		entry.el.style.transform = "";
+	}
+}
+function _cardPhysHoverOut(e) {
+	const entry = _cardPhysCards.find((c) => c.el === e.currentTarget);
+	if (entry) {
+		entry.hovered = false;
+		// Clear push/wiggle CSS vars
+		entry.el.style.removeProperty("--push-x");
+		entry.el.style.removeProperty("--push-y");
+		entry.el.style.removeProperty("--wiggle-rot");
+	}
+}
+
+function _cardPhysTick(now) {
+	if (!_cardPhysCards.length) return;
+	const t = (now - _cardPhysStart) / 1000;
+	const anyHovered = _cardPhysCards.some((c) => c.hovered);
+
+	// Compute each card's center for repulsion
+	const rects = _cardPhysCards.map((c) => {
+		const r = c.el.getBoundingClientRect();
+		return { cx: r.left + r.width / 2 + c.pushX, cy: r.top + r.height / 2 + c.pushY, w: r.width, h: r.height };
+	});
+
+	for (let i = 0; i < _cardPhysCards.length; i++) {
+		const c = _cardPhysCards[i];
+
+		// Wiggle rotation only on hovered (big/selected) cards
+		let rot = 0;
+		if (c.hovered) {
+			rot = Math.sin(t * c.wiggleSpeed + c.wigglePhase) * c.wiggleAmp;
+		}
+
+		// Magnetic repulsion from neighbors
+		let fx = 0, fy = 0;
+		for (let j = 0; j < _cardPhysCards.length; j++) {
+			if (i === j) continue;
+			const other = _cardPhysCards[j];
+			if (other.hovered) {
+				// Hovered card pushes neighbors harder
+				const dx = rects[i].cx - rects[j].cx;
+				const dy = rects[i].cy - rects[j].cy;
+				const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+				const threshold = (rects[i].w + rects[j].w) * 0.6;
+				if (dist < threshold) {
+					const strength = 18 * (1 - dist / threshold);
+					fx += (dx / dist) * strength;
+					fy += (dy / dist) * strength * 0.3;
+				}
+			} else {
+				// Gentle ambient repulsion when close
+				const dx = rects[i].cx - rects[j].cx;
+				const dy = rects[i].cy - rects[j].cy;
+				const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+				const threshold = (rects[i].w + rects[j].w) * 0.52;
+				if (dist < threshold) {
+					const strength = 4 * (1 - dist / threshold);
+					fx += (dx / dist) * strength;
+					fy += (dy / dist) * strength * 0.2;
+				}
+			}
+		}
+
+		// Smooth lerp pushX/pushY toward force target
+		const lerpRate = 0.08;
+		c.pushX += (fx - c.pushX) * lerpRate;
+		c.pushY += (fy - c.pushY) * lerpRate;
+
+		if (!c.hovered) {
+			// Non-hovered: only apply magnetic push, no animation
+			if (Math.abs(c.pushX) > 0.1 || Math.abs(c.pushY) > 0.1) {
+				c.el.style.transform = `translateY(${c.pushY}px) translateX(${c.pushX}px)`;
+			} else {
+				c.el.style.transform = "";
+			}
+		} else {
+			// Add push offset + wiggle rotation to hovered (big) cards
+			c.el.style.setProperty("--push-x", c.pushX + "px");
+			c.el.style.setProperty("--push-y", c.pushY + "px");
+			c.el.style.setProperty("--wiggle-rot", rot + "deg");
+		}
+	}
+
+	_cardPhysRAF = requestAnimationFrame(_cardPhysTick);
+}
+
+function stopCardPhysics() {
+	if (_cardPhysRAF) {
+		cancelAnimationFrame(_cardPhysRAF);
+		_cardPhysRAF = null;
+	}
+	_cardPhysCards.forEach((c) => {
+		c.el.removeEventListener("mouseenter", _cardPhysHoverIn);
+		c.el.removeEventListener("mouseleave", _cardPhysHoverOut);
+		c.el.style.transform = "";
+		c.el.style.removeProperty("--wiggle-rot");
+	});
+	_cardPhysCards = [];
+}
+
 // ═══ BUILD UI ═══
+function updateSkipTutBtn() {
+	const btn = $("skip-tut-btn");
+	if (btn) btn.style.display = _tutorialDone ? "none" : "block";
+}
 function buildPadGrid() {
 	const grid = $("pad-grid");
 	grid.innerHTML = "";
@@ -7533,7 +8427,11 @@ function buildPadGrid() {
 			enemyUps = [];
 			padId = p.id;
 			SFX.sel();
-			showOpponentSelect();
+			if (!_tutorialDone) {
+				startTutorial(p.id);
+			} else {
+				showOpponentSelect();
+			}
 		};
 		grid.appendChild(d);
 	});
@@ -7541,6 +8439,8 @@ function buildPadGrid() {
 
 function showUpgradeScreen(rewardTier, clearedDiff) {
 	$("rank-display").innerHTML = "";
+	// Explanation text
+	$("upgrade-explain").textContent = "After every wave you defeat an enemy, pick a card to power up your paddle. Harder enemies drop rarer rewards.";
 	// Difficulty badge
 	const dc = DIFF_COLORS[clearedDiff] || "#fff";
 	const dg = DIFF_GLOW[clearedDiff] || "255,255,255";
@@ -7598,12 +8498,39 @@ function showUpgradeScreen(rewardTier, clearedDiff) {
 			c.fn(t);
 			savedState = t;
 			SFX.sel();
+			// Tutorial: picking a card finishes the tutorial
+			if (tut && tut.active) {
+				finishTutorial();
+				return;
+			}
 			if (curEUp) enemyUps.push(curEUp);
 			showOpponentSelect();
 		};
 		grid.appendChild(d);
 	});
 	showScreen("cards-screen");
+	initCardPhysics(grid);
+	// Tutorial: show tooltip on cards screen
+	if (tut && tut.active && tut.cardTooltip) {
+		let tip = $("tut-card-tip");
+		if (!tip) {
+			tip = document.createElement("div");
+			tip.id = "tut-card-tip";
+			tip.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,10,16,0.92);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:10px 22px;text-align:center;pointer-events:none;animation:tutTipIn 0.5s ease-out;font-family:'Share Tech Mono',monospace;";
+			tip.innerHTML = '<div style="color:#fff;font-size:13px;font-weight:bold;letter-spacing:2px;margin-bottom:4px;">UPGRADE CARDS</div><div style="color:#99a;font-size:10px;">After each wave, choose a card to power up your paddle.</div><div style="color:#667;font-size:9px;margin-top:6px;">PICK ANY CARD TO CONTINUE</div>';
+			document.body.appendChild(tip);
+			// Add animation keyframes if not present
+			if (!document.getElementById("tut-tip-style")) {
+				const st = document.createElement("style");
+				st.id = "tut-tip-style";
+				st.textContent = "@keyframes tutTipIn{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}";
+				document.head.appendChild(st);
+			}
+		}
+	} else {
+		const tip = document.getElementById("tut-card-tip");
+		if (tip) tip.remove();
+	}
 }
 
 function showGameOver() {
@@ -7850,6 +8777,7 @@ function showOpponentSelect() {
 	});
 
 	showScreen("opp-screen");
+	initCardPhysics(grid);
 }
 function showVictory() {
 	const c = PCOL[padId];
@@ -7883,6 +8811,26 @@ function showVictory() {
 // ═══ INPUT ═══
 window.addEventListener("keydown", (e) => {
 	const k = e.key.toLowerCase();
+	// Tutorial input handling
+	if (tut && tut.active) {
+		if (k === "escape") {
+			skipTutorial();
+			return;
+		}
+		if (tut.phase === "intro" || tut.phase === "overlay") {
+			e.preventDefault();
+			dismissTutOverlay();
+			return;
+		}
+		keysDown[k] = true;
+		if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k))
+			e.preventDefault();
+		if (k === "q") doAbility();
+		if (e.key === "Enter" && g && g.done) {
+			handleContinue();
+		}
+		return;
+	}
 	if (k === "escape") {
 		if (curScreen === null && g && !g.done) {
 			paused = !paused;
@@ -7902,6 +8850,10 @@ window.addEventListener("keyup", (e) => {
 	keysDown[e.key.toLowerCase()] = false;
 });
 $("cv").addEventListener("click", () => {
+	if (tut && tut.active && (tut.phase === "intro" || tut.phase === "overlay")) {
+		dismissTutOverlay();
+		return;
+	}
 	if (!advanceFoolDialogue(g)) handleContinue();
 });
 $("go-retry").onclick = () => {
@@ -8315,11 +9267,22 @@ function loop(now) {
 	const dt = Math.min((now - last) / 1000, 0.04);
 	last = now;
 	if (curScreen === null && g) {
-		update(dt);
-		draw(ctx, viewW, viewH);
+		try {
+			update(dt);
+			draw(ctx, viewW, viewH);
+		} catch (err) {
+			console.error("Game loop error:", err);
+		}
 	}
 	requestAnimationFrame(loop);
 }
+// Tutorial resets every session
+let _tutorialDone = false;
 buildPadGrid();
+$("skip-tut-btn").onclick = () => {
+	_tutorialDone = true;
+	updateSkipTutBtn();
+	SFX.sel();
+};
 showScreen("menu-screen");
 requestAnimationFrame(loop);

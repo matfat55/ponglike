@@ -17,14 +17,16 @@
     <div class="slabel">CHOOSE YOUR PADDLE</div>
     <div class="pad-grid" id="pad-grid"></div>
     <div class="dim" style="margin-top:36px;">W/S MOVE &middot; A/D SHIFT &middot; Q ABILITY &middot; FIRST TO 5 &middot; 12 WAVES &middot; ENEMY UPGRADES TOO</div>
+    <div id="skip-tut-btn" style="margin-top:14px;cursor:pointer;color:#667;font-size:10px;letter-spacing:4px;transition:color 0.2s;" onmouseenter="this.style.color='#aab'" onmouseleave="this.style.color='#667'">SKIP TUTORIAL</div>
     <div id="dev-btn" style="margin-top:20px;cursor:pointer;color:#e8e8e8;font-size:10px;letter-spacing:4px;transition:color 0.2s;" onmouseenter="this.style.color='#fff'" onmouseleave="this.style.color='#e8e8e8'" onclick="SFX.sel();showDevScreen();">&#9881; DEV MODE</div>
   </div>
 </div>
 
 <div id="cards-screen" class="screen hidden">
   <div style="text-align:center;max-width:760px;padding:0 16px;">
-    <div style="color:#fff;font-size:12px;letter-spacing:6px;margin-bottom:6px;">WAVE CLEAR</div>
+    <div style="color:#fff;font-size:14px;letter-spacing:6px;margin-bottom:6px;">WAVE CLEAR</div>
     <div id="upgrade-title" style="font-size:clamp(24px,4vw,34px);letter-spacing:10px;margin-bottom:6px;text-shadow:0 0 18px rgba(255,255,255,0.18);">SELECT YOUR REWARD</div>
+    <div id="upgrade-explain" style="color:#b0b2c0;font-size:13px;letter-spacing:2px;margin-bottom:10px;"></div>
     <div id="rank-display"></div>
     <div id="diff-display" style="margin:4px 0;"></div>
     <div id="e-warn-box"></div>

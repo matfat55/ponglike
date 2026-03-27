@@ -93,7 +93,6 @@ canvas {
 	border: 1px solid #1a1a1a;
 	border-radius: 3px;
 	background: linear-gradient(170deg, #080808, #040406);
-	transition: all 0.2s ease;
 	position: relative;
 }
 .pad-card::before {
@@ -120,7 +119,7 @@ canvas {
 	opacity: 0.4;
 }
 .pad-card:hover {
-	transform: translateY(-4px);
+	transform: translateY(-4px) rotate(var(--wiggle-rot, 0deg));
 	background: linear-gradient(170deg, #0c0c0c, #060608);
 	border-color: #2a2a2a;
 }
@@ -151,7 +150,7 @@ canvas {
 }
 .pad-card .pd {
 	color: #f2f2f2;
-	font-size: 11px;
+	font-size: 12px;
 	line-height: 1.7;
 	margin-bottom: 10px;
 	min-height: 36px;
@@ -175,7 +174,7 @@ canvas {
 }
 .pad-card .pi {
 	color: #f3f3f3;
-	font-size: 10px;
+	font-size: 11px;
 	margin-top: 4px;
 }
 .pad-card .pt {
@@ -194,16 +193,16 @@ canvas {
 /* Upgrade cards — each feels weighty and deliberate */
 .card-grid {
 	display: flex;
-	gap: 18px;
+	gap: 14px;
 	justify-content: center;
-	flex-wrap: wrap;
-	max-width: 860px;
+	flex-wrap: nowrap;
+	max-width: 760px;
 	margin: 0 auto;
 }
 
 .up-card {
-	width: clamp(210px, 28vw, 280px);
-	padding: 30px 20px 24px;
+	width: clamp(160px, 22vw, 220px);
+	padding: 18px 14px 16px;
 	text-align: center;
 	cursor: pointer;
 	border: 1px solid #1a1a1a;
@@ -211,6 +210,7 @@ canvas {
 	background: linear-gradient(175deg, #080808 0%, #050507 100%);
 	transition: all 0.22s ease;
 	position: relative;
+	overflow: visible;
 }
 .up-card::after {
 	content: "";
@@ -226,13 +226,13 @@ canvas {
 	opacity: 0.04;
 }
 .up-card:hover {
-	transform: translateY(-6px);
+	transform: translateY(calc(-6px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) rotate(var(--wiggle-rot, 0deg));
 	background: linear-gradient(175deg, #0d0d0d 0%, #08080a 100%);
 	border-color: #333;
 }
 .up-card .ri {
-	font-size: 32px;
-	margin-bottom: 12px;
+	font-size: 24px;
+	margin-bottom: 8px;
 	transition: text-shadow 0.2s;
 }
 .up-card:hover .ri {
@@ -241,28 +241,28 @@ canvas {
 		0 0 40px var(--rc);
 }
 .up-card .cn {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 700;
 	letter-spacing: 2px;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 	color: #eee;
 }
 .up-card:hover .cn {
 	text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 .up-card .cd {
-	color: #fff;
-	font-size: 14px;
+	color: #ddd;
+	font-size: 11px;
 	line-height: 1.6;
-	margin-bottom: 12px;
-	min-height: 24px;
+	margin-bottom: 8px;
+	min-height: 16px;
 }
 .up-card .cr {
 	font-size: 10px;
 	color: #fff;
-	letter-spacing: 4px;
+	letter-spacing: 3px;
 	font-weight: 700;
-	padding: 8px 0 0;
+	padding: 6px 0 0;
 	border-top: 1px solid #1a1a1a;
 	transition: all 0.2s;
 }
@@ -272,11 +272,11 @@ canvas {
 .up-card .ab-tag {
 	font-size: 9px;
 	color: #fff;
-	letter-spacing: 3px;
-	padding: 4px 10px;
+	letter-spacing: 2px;
+	padding: 3px 8px;
 	border-radius: 2px;
 	display: inline-block;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 }
 
 /* Enemy warning */
@@ -327,7 +327,8 @@ canvas {
 	opacity: 0.5;
 }
 .opp-card:hover {
-	transform: translateY(-5px);
+	transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+	transform: translateY(calc(-5px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) rotate(var(--wiggle-rot, 0deg));
 	background: linear-gradient(172deg, #0c0c0c 0%, #06060a 100%);
 	border-color: #2a2a2a;
 }
@@ -693,8 +694,7 @@ canvas {
 /* ─── Paddle cards: smooth hover rise, particles via JS ─── */
 .pad-card {
 	will-change: transform, box-shadow, filter;
-	transition: transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
-	            box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	transition: box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
 	            border-color 0.3s ease,
 	            background 0.3s ease,
 	            filter 0.4s ease,
@@ -702,11 +702,18 @@ canvas {
 	            opacity 0.4s ease;
 }
 .pad-card.card-enter {
-	animation: cardEntrance 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	animation: cardEntrance 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 	animation-delay: calc(var(--i, 0) * 0.09s);
 }
 .pad-card:hover {
-	transform: translateY(-24px) scale(1.14);
+	transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            border-color 0.3s ease,
+	            background 0.3s ease,
+	            filter 0.4s ease,
+	            margin 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            opacity 0.4s ease;
+	transform: translateY(calc(-24px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) scale(1.14) rotate(var(--wiggle-rot, 0deg));
 	z-index: 10;
 	border-color: var(--pc);
 	background: linear-gradient(170deg, #0f0f0f, #0a0a12);
@@ -718,7 +725,7 @@ canvas {
 	margin: 0 18px;
 }
 .pad-card:active {
-	transform: translateY(-8px) scale(1.02);
+	transform: translateY(calc(-8px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) scale(1.02) rotate(var(--wiggle-rot, 0deg));
 	transition-duration: 0.1s;
 }
 .pad-card .cdot {
@@ -732,11 +739,6 @@ canvas {
 	transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 /* Neighbor cards dim when one is hovered */
-.pad-grid:has(.pad-card:hover) .pad-card:not(:hover) {
-	filter: brightness(0.25) blur(1.5px);
-	transform: scale(0.85);
-	opacity: 0.7;
-}
 /* "PLAY" text: always visible, vibrant on hover */
 .pad-card .pt {
 	color: rgba(255,255,255,0.2);
@@ -751,8 +753,7 @@ canvas {
 /* ─── Upgrade cards: smooth hover rise, vibrant ─── */
 .up-card {
 	will-change: transform, box-shadow, filter;
-	transition: transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
-	            box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	transition: box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
 	            border-color 0.3s ease,
 	            background 0.3s ease,
 	            filter 0.4s ease,
@@ -760,40 +761,47 @@ canvas {
 	            opacity 0.4s ease;
 }
 .up-card.card-enter {
-	animation: cardEntrance 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	animation: cardEntrance 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 	animation-delay: calc(var(--i, 0) * 0.13s);
 }
 .up-card:hover {
-	transform: translateY(-24px) scale(1.14);
+	transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            box-shadow 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            border-color 0.3s ease,
+	            background 0.3s ease,
+	            filter 0.4s ease,
+	            margin 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            opacity 0.4s ease;
+	transform: translateY(calc(-16px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) scale(1.08) rotate(var(--wiggle-rot, 0deg));
 	z-index: 10;
 	border-color: var(--rc);
 	background: linear-gradient(175deg, #111115 0%, #0b0b12 100%);
 	box-shadow:
-		0 0 60px color-mix(in srgb, var(--rc) 40%, transparent),
-		0 0 120px color-mix(in srgb, var(--rc) 18%, transparent),
-		0 24px 60px rgba(0, 0, 0, 0.75),
-		inset 0 0 40px color-mix(in srgb, var(--rc) 8%, transparent);
-	margin: 0 18px;
+		0 0 40px color-mix(in srgb, var(--rc) 35%, transparent),
+		0 0 80px color-mix(in srgb, var(--rc) 14%, transparent),
+		0 16px 40px rgba(0, 0, 0, 0.7),
+		inset 0 0 24px color-mix(in srgb, var(--rc) 6%, transparent);
+	margin: 0 10px;
 }
 .up-card::after {
 	content: "";
 	position: absolute;
-	left: -16px;
-	right: -16px;
-	bottom: -48px;
-	height: 48px;
+	left: -10px;
+	right: -10px;
+	bottom: -32px;
+	height: 32px;
 	pointer-events: auto;
 }
 .up-card:active {
-	transform: translateY(-10px) scale(1.02);
+	transform: translateY(calc(-6px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) scale(1.02) rotate(var(--wiggle-rot, 0deg));
 	transition-duration: 0.1s;
 }
 .up-card .ri {
 	transition: text-shadow 0.3s ease, transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .up-card:hover .ri {
-	transform: scale(1.4);
-	text-shadow: 0 0 40px var(--rc), 0 0 80px var(--rc);
+	transform: scale(1.25);
+	text-shadow: 0 0 30px var(--rc), 0 0 60px var(--rc);
 }
 .up-card .cn {
 	transition: text-shadow 0.3s ease, color 0.3s ease;
@@ -815,11 +823,6 @@ canvas {
 	text-shadow: 0 0 12px var(--rc);
 }
 /* Neighbor cards dim */
-.card-grid:has(.up-card:hover) .up-card:not(:hover) {
-	filter: brightness(0.25) blur(1.5px);
-	transform: scale(0.85);
-	opacity: 0.7;
-}
 
 /* ═══════════════════════════════════════════════
    OPPONENT SELECTION — CLEAN & DISTINCT
@@ -832,8 +835,7 @@ canvas {
 	width: clamp(200px, 28vw, 270px);
 	padding: 28px 20px 22px;
 	will-change: transform, box-shadow;
-	transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
-	            box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+	transition: box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
 	            border-color 0.35s ease,
 	            background 0.35s ease,
 	            filter 0.35s ease;
@@ -842,7 +844,7 @@ canvas {
 	border: 1px solid #1e1e24;
 }
 .opp-card.card-enter {
-	animation: cardEntrance 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+	animation: cardEntrance 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 	animation-delay: calc(var(--i, 0) * 0.14s);
 }
 .opp-card::before {
@@ -863,7 +865,12 @@ canvas {
 	right: 5%;
 }
 .opp-card:hover {
-	transform: translateY(-10px);
+	transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+	            border-color 0.35s ease,
+	            background 0.35s ease,
+	            filter 0.35s ease;
+	transform: translateY(calc(-10px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) rotate(var(--wiggle-rot, 0deg));
 	z-index: 10;
 	border-color: color-mix(in srgb, var(--dc) 50%, #1e1e24);
 	background: linear-gradient(175deg, #0e0e12 0%, #09090e 100%);
@@ -872,7 +879,7 @@ canvas {
 		0 16px 45px rgba(0, 0, 0, 0.55);
 }
 .opp-card:active {
-	transform: translateY(-5px);
+	transform: translateY(calc(-5px + var(--push-y, 0px))) translateX(var(--push-x, 0px)) rotate(var(--wiggle-rot, 0deg));
 	transition-duration: 0.1s;
 }
 /* Hover zone below opp cards to prevent flicker */
@@ -956,9 +963,6 @@ canvas {
 	border-color: color-mix(in srgb, var(--dc) 30%, transparent);
 }
 /* Neighbors dim slightly — but less than pad/up cards */
-.opp-grid:has(.opp-card:hover) .opp-card:not(:hover) {
-	filter: brightness(0.65);
-}
 
 /* ─── Buttons: polish ─── */
 .btn {
