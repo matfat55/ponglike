@@ -13,7 +13,7 @@ const PX_HOME = 40,
 	MAX_WAVE = 12,
 	TRAIL = 24,
 	BASE_SPD = 340;
-const MAX_BALL_SPD = 2200;
+const MAX_BALL_SPD = 99999;
 // Visual/particle caps (raised to allow richer effects)
 const MAX_SPARKS = 350,
 	MAX_MULTI = 14,
@@ -2058,9 +2058,9 @@ const TUT_STEPS = [
 	{
 		id: "spin",
 		title: "SPIN",
-		body: "Move while hitting the ball to add curve.",
+		body: "Hit the ball while moving to add curve.",
 		keys: ["W", "S"],
-		keyLabel: "MOVE WHILE HITTING",
+		keyLabel: "HIT WHILE MOVING TO CURVE",
 		highlight: "ball",
 		noBlock: true,
 		trigger(g, tut) { return tut.rallyHits >= 2; },
@@ -2069,7 +2069,7 @@ const TUT_STEPS = [
 	{
 		id: "rally",
 		title: "RALLY SPEED",
-		body: "Each hit speeds up the ball.",
+		body: "Each hit speeds up the ball. Stay sharp!",
 		keys: [],
 		keyLabel: "WATCH THE BALL ACCELERATE",
 		highlight: "hud",
@@ -2081,26 +2081,24 @@ const TUT_STEPS = [
 	{
 		id: "ability",
 		title: "PADDLE ABILITIES",
-		body: "Some paddles have abilities — press Q.",
+		body: "Some paddles have abilities — press Q to activate.",
 		keys: ["Q"],
 		keyLabel: "Q  —  ACTIVATE ABILITY",
 		highlight: null,
 		noBlock: true,
 		trigger(g, tut) { return true; },
-		done(g, tut) { return tut.autoTimer >= 3.5; },
-		autoAdvance: true,
+		done(g, tut) { return tut.abilityUsed || (g && g.padId === "classic"); },
 	},
 	{
-		id: "cards",
-		title: "UPGRADE CARDS",
-		body: "After each win, choose a card to upgrade your paddle!",
+		id: "win",
+		title: "WIN THE MATCH",
+		body: "Score 5 points to defeat your opponent!",
 		keys: [],
-		keyLabel: "",
+		keyLabel: "SCORE 5 POINTS TO WIN",
 		highlight: null,
-		noBlock: false,
+		noBlock: true,
 		trigger(g, tut) { return true; },
-		done(g, tut) { return tut.autoTimer >= 0.1; },
-		autoAdvance: true,
+		done(g, tut) { return g && g.done && g.result === "win"; },
 	},
 ];
 
@@ -2110,7 +2108,7 @@ function newTutorial() {
 	return {
 		active: true,
 		stepIdx: 0,
-		phase: "intro",   // "intro" | "wait" | "overlay" | "active" | "check" | "done"
+		phase: "intro",   // "intro" | "enemySelect" | "wait" | "overlay" | "active" | "check" | "done"
 		introAlpha: 0,
 		startPy: GH / 2,
 		startPx: PX_HOME,
@@ -2129,11 +2127,38 @@ function newTutorial() {
 		checkAlpha: 0,
 		checkStepTitle: "",
 		overlayShowT: 0,
+		keysHeldAtOverlay: {},
+		gameStarted: false,
+		abilityUsed: false,
 	};
 }
 
 function startTutorial(pid) {
 	const usePad = pid || "classic";
+	padId = usePad;
+	wave = 1;
+	savedState = null;
+	enemyUps = [];
+	tut = newTutorial();
+	tut.keysHeldAtOverlay = { ...keysDown };
+	showScreen(null); // show canvas for intro overlay
+}
+
+function startTutorialGame() {
+	// Called after enemy select (or on loss restart) — creates the actual game
+	const tip = document.getElementById("tut-opp-tip");
+	if (tip) tip.remove();
+	// Reset tutorial tracking state for fresh game
+	tut.rallyHits = 0;
+	tut.spaceHeldMoving = 0;
+	tut.spinApplied = false;
+	tut.autoTimer = 0;
+	tut.abilityUsed = false;
+	tut.stepIdx = 0;
+	tut.completedSteps = [];
+	tut.hintAlpha = 0;
+	tut.overlayAlpha = 0;
+	const usePad = padId || "classic";
 	const enemy = ENEMIES.find(e => e.id === "basic") || ENEMIES[0];
 	const tutCfg = {
 		wv: 1,
@@ -2149,23 +2174,20 @@ function startTutorial(pid) {
 		jitter: false,
 	};
 	enemy.mod(tutCfg);
-	tutCfg.aiSpd = 55;
-	tutCfg.aiReact = 0.04;
-	padId = usePad;
-	wave = 1;
-	savedState = null;
-	enemyUps = [];
+	tutCfg.aiSpd = 110;
+	tutCfg.aiReact = 0.06;
 	chosenOppCfg = tutCfg;
 	g = newGame(usePad, 1, null, [], tutCfg);
-	g.winScore = 999;
-	g.bs *= 0.72;
-	g.ballSpd *= 0.72;
+	g.winScore = PTS_WIN;
+	g.bs *= 0.82;
+	g.ballSpd *= 0.82;
 	g.waveBaseBs = g.bs;
 	g.rallyBase = g.bs;
 	chosenOppCfg = null;
-	tut = newTutorial();
 	tut.startPy = g.py;
 	tut.startPx = g.px;
+	tut.gameStarted = true;
+	tut.phase = "wait";
 	showScreen(null);
 }
 
@@ -2188,13 +2210,16 @@ function advanceTutStep() {
 	tone(880, 0.04, "sine", 0.04, 60);
 }
 
-function dismissTutOverlay() {
+function dismissTutOverlay(key) {
 	if (!tut) return false;
 	if (tut.overlayShowT < 0.5) return false;
+	// Reject if the key was already held when overlay appeared
+	if (key && tut.keysHeldAtOverlay[key]) return false;
 	if (tut.phase === "intro") {
-		tut.phase = "wait";
+		tut.phase = "enemySelect";
 		tut.overlayShowT = 0;
 		tone(660, 0.03, "square", 0.035);
+		showTutorialEnemySelect();
 		return true;
 	}
 	if (tut.phase !== "overlay") return false;
@@ -2217,36 +2242,99 @@ function skipTutorial() {
 function finishTutorial() {
 	if (!tut) return;
 	tut.active = false;
-	tut.doneOverlayT = 2.5;
+	tut.doneOverlayT = 0;
 	_tutorialDone = true;
 	const tip = document.getElementById("tut-card-tip");
 	if (tip) tip.remove();
-	showScreen(null);
-	if (!g) {
-		g = newGame(padId || "classic", 1, null, [], {
-			wv: 1, boss: false, diff: "F", aiSpd: 55, aiReact: 0.04,
-			eH: BASE_PAD_H, enemy: ENEMIES[0],
-			trickAng: false, ghost: false, chaos: false, jitter: false,
-		});
-		g.done = true;
-		g.result = "win";
-		g.doneT = 99;
-	}
+	const oppTip = document.getElementById("tut-opp-tip");
+	if (oppTip) oppTip.remove();
+	tut = null;
+	// Route to real opponent select for the actual game
+	wave = 1;
+	savedState = null;
+	enemyUps = [];
+	showOpponentSelect();
+}
+
+function showTutorialEnemySelect() {
+	// Show the opponent select screen with a single easy enemy + tutorial tooltip
+	$("opp-wave-num").textContent = 1;
+	const wb = $("opp-enemy-warn");
+	wb.innerHTML = "";
+
+	const enemy = ENEMIES.find(e => e.id === "basic") || ENEMIES[0];
+	const cfg = {
+		wv: 1, boss: false, diff: "F", aiSpd: 110, aiReact: 0.06,
+		eH: BASE_PAD_H, enemy,
+		trickAng: false, ghost: false, chaos: false, jitter: false,
+	};
+	enemy.mod(cfg);
+	cfg.aiSpd = 110;
+	cfg.aiReact = 0.06;
+	const dc = DIFF_COLORS[cfg.diff] || "#fff";
+	const dg = DIFF_GLOW[cfg.diff] || "255,255,255";
+
+	const grid = $("opp-grid");
+	grid.innerHTML = "";
+
+	const d = document.createElement("div");
+	d.className = "opp-card card-enter";
+	d.style.setProperty("--dc", dc);
+	d.style.setProperty("--i", 0);
+
+	let html = `<div style="font-size:9px;letter-spacing:4px;color:#8f8;margin-bottom:8px;font-weight:700;">TUTORIAL</div>`;
+	html += `<div class="opp-diff" style="color:${dc}">${cfg.diff}</div>`;
+	html += `<div class="opp-name">${cfg.enemy.name}</div>`;
+	html += `<div class="opp-tag">${cfg.enemy.tag || "\u00A0"}</div>`;
+
+	const spdR = Math.min(Math.round(cfg.aiSpd / 80), 9);
+	const iqR = Math.min(Math.round(cfg.aiReact * 10), 9);
+	const szR = Math.min(Math.round(cfg.eH / 20), 9);
+	html += `<div class="opp-stats"><div class="opp-stat">SPD ${spdR}</div><div class="opp-stat">IQ ${iqR}</div><div class="opp-stat">SZ ${szR}</div></div>`;
+	html += `<div class="opp-fight">FIGHT</div>`;
+
+	d.innerHTML = html;
+	d.onmouseenter = () => {
+		d.style.borderColor = dc;
+		d.style.boxShadow = `0 0 30px rgba(${dg},.16),0 14px 40px rgba(0,0,0,.5),inset 0 0 20px rgba(${dg},.04)`;
+	};
+	d.onmouseleave = () => {
+		d.style.borderColor = "";
+		d.style.boxShadow = "";
+	};
+	d.onclick = () => {
+		SFX.sel();
+		startTutorialGame();
+	};
+	grid.appendChild(d);
+
+	// Add tutorial tooltip below the card
+	const tip = document.createElement("div");
+	tip.id = "tut-opp-tip";
+	tip.style.cssText = "text-align:center;color:#8f8;font-size:13px;letter-spacing:2px;margin-top:18px;font-family:inherit;animation:pulse 1.5s ease-in-out infinite;";
+	tip.textContent = "\u25B2  SELECT YOUR OPPONENT TO BEGIN  \u25B2";
+	grid.parentNode.appendChild(tip);
+
+	showScreen("opp-screen");
+	initCardPhysics(grid);
 }
 
 function updateTutorial(dt) {
-	if (!tut || !tut.active || !g) return;
-	const step = tutStep();
-	if (!step) return;
+	if (!tut || !tut.active) return;
 
-	if (tut.completeFlash > 0) tut.completeFlash -= dt * 2;
-
-	// Intro phase — fade in, physics paused
+	// Enemy select and intro phases don't need a game
+	if (tut.phase === "enemySelect") return;
 	if (tut.phase === "intro") {
 		tut.introAlpha = Math.min(1, tut.introAlpha + dt * 5);
 		tut.overlayShowT += dt;
 		return;
 	}
+
+	if (!g) return;
+	const step = tutStep();
+	if (!step) return;
+
+	if (tut.completeFlash > 0) tut.completeFlash -= dt * 2;
 
 	// Overlay phase — fade in, physics paused
 	if (tut.phase === "overlay") {
@@ -2310,10 +2398,14 @@ function checkTutTrigger(dt) {
 			tut.startPy = g.py;
 			tut.startPx = g.px;
 		} else {
+			// Don't show blocking overlay if ball is near/approaching player paddle
+			if (g.bx < 250 && g.bvx < 0) return;
 			// Show blocking overlay, pause physics
 			tut.phase = "overlay";
 			tut.overlayAlpha = 0;
 			tut.overlayShowT = 0;
+			// Snapshot currently held keys so we can require a fresh press to dismiss
+			tut.keysHeldAtOverlay = { ...keysDown };
 		}
 	}
 }
@@ -2339,8 +2431,22 @@ function addSparks(g, x, y, n = 8, sp = 120, col = null) {
 
 function applyRallyHitSpeed(g, mul = getRallyMul((g.rallyHits || 0) + 1)) {
 	g.rallyHits++;
-	g.rallyBase *= mul;
-	g.ballSpd *= mul;
+	const baseSpd = g.waveBaseBs || g.bs;
+	const softcapThresh = baseSpd * 4; // 300% increase = 4x base
+	if (g.rallyBase >= softcapThresh) {
+		// Past softcap: additive increase only (small flat amount)
+		const additive = baseSpd * 0.02; // +2% of base per hit
+		g.rallyBase += additive;
+		g.ballSpd += additive;
+	} else {
+		g.rallyBase *= mul;
+		g.ballSpd *= mul;
+		// Clamp to softcap boundary so we don't overshoot
+		if (g.rallyBase > softcapThresh) {
+			g.ballSpd = g.ballSpd / g.rallyBase * softcapThresh;
+			g.rallyBase = softcapThresh;
+		}
+	}
 	if (g.cdRally) g.abCD = Math.max(0, g.abCD - 0.2);
 }
 
@@ -2364,11 +2470,12 @@ function getEnemyOpenLaneY(g) {
 }
 
 function resetBall(g, dir) {
-	// Reset to the base speed from start of wave (no carry-over)
+	// Carry 15% of last rally's speed gain into next point
 	const baseSpd = g.waveBaseBs || g.bs;
-	g.rallyBase = baseSpd;
+	const carrySpd = baseSpd + (g.rallyBase - baseSpd) * 0.15;
+	g.rallyBase = carrySpd;
 	g.rallyHits = 0;
-	g.ballSpd = baseSpd;
+	g.ballSpd = carrySpd;
 	g.bx = GW / 2;
 	g.by = GH / 2 + rng(-60, 60);
 	g.bvx = 0;
@@ -2844,17 +2951,17 @@ function isKleinLossState(g) {
 
 // ═══ UPDATE ═══
 function update(dt) {
+	// Tutorial pre-game phases (intro, enemySelect) — tick even without g
+	if (!g && tut && tut.active) {
+		updateTutorial(dt);
+		return;
+	}
 	if (!g) return;
-	// Tutorial: done overlay countdown
+	// Tutorial: done overlay countdown — just clean up tut reference
 	if (tut && !tut.active && tut.doneOverlayT > 0) {
 		tut.doneOverlayT -= dt;
 		if (tut.doneOverlayT <= 0) {
 			tut = null;
-			g = null;
-			savedState = null;
-			wave = 1;
-			enemyUps = [];
-			showScreen("menu-screen");
 		}
 		return;
 	}
@@ -2888,9 +2995,9 @@ function update(dt) {
 		}
 		return;
 	}
-	// Tutorial: block physics during intro/overlay, tick check phase
+	// Tutorial: block physics during intro/overlay/enemySelect, tick check phase
 	if (tut && tut.active) {
-		if (tut.phase === "intro") {
+		if (tut.phase === "intro" || tut.phase === "enemySelect") {
 			updateTutorial(dt);
 			return;
 		}
@@ -5209,8 +5316,8 @@ function update(dt) {
 			}
 		}
 	}
-	// Tutorial: update monitoring and track conditions
-	if (tut && tut.active) updateTutorial(dt);
+	// Tutorial: update monitoring and track conditions (skip check phase — already ticked above)
+	if (tut && tut.active && tut.phase !== "check") updateTutorial(dt);
 }
 
 function ricoB(gg) {
@@ -5280,7 +5387,50 @@ function drawSmokeTextAura(ctx, x, y, t, intensity = 1) {
 }
 
 function draw(ctx, cw, ch) {
-	if (!g) return;
+	// Tutorial intro/enemySelect: render on black canvas even without a game
+	if (!g) {
+		if (tut && tut.active && tut.phase === "intro") {
+			const sx = cw / GW, sy = ch / GH;
+			ctx.clearRect(0, 0, cw, ch);
+			ctx.save();
+			ctx.scale(sx, sy);
+			const ia = Math.min(1, tut.introAlpha);
+			ctx.globalAlpha = 0.85 * ia;
+			ctx.fillStyle = "#080812";
+			ctx.fillRect(0, 0, GW, GH);
+			ctx.globalAlpha = 0.15 * ia;
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(GW / 2 - 60, GH / 2 - 56, 120, 1);
+			ctx.globalAlpha = ia;
+			ctx.fillStyle = "#fff";
+			ctx.font = 'bold 38px "Share Tech Mono",monospace';
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.shadowColor = "rgba(255,255,255,0.25)";
+			ctx.shadowBlur = 20;
+			ctx.fillText("TUTORIAL", GW / 2, GH / 2 - 34);
+			ctx.shadowBlur = 0;
+			ctx.globalAlpha = 0.15 * ia;
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(GW / 2 - 60, GH / 2 - 12, 120, 1);
+			ctx.globalAlpha = 0.65 * ia;
+			ctx.fillStyle = "#b0b2c0";
+			ctx.font = '15px "Share Tech Mono",monospace';
+			ctx.fillText("Learn the basics before your first match", GW / 2, GH / 2 + 10);
+			const pulse = 0.4 + 0.6 * Math.sin((performance.now() / 1000) * 3);
+			ctx.globalAlpha = pulse * 0.55 * ia;
+			ctx.fillStyle = "#8890a0";
+			ctx.font = '13px "Share Tech Mono",monospace';
+			ctx.fillText("PRESS ANY KEY TO START", GW / 2, GH / 2 + 48);
+			ctx.globalAlpha = 0.3 * ia;
+			ctx.fillStyle = "#667";
+			ctx.font = '11px "Share Tech Mono",monospace';
+			ctx.fillText("ESC TO SKIP", GW / 2, GH / 2 + 72);
+			ctx.globalAlpha = 1;
+			ctx.restore();
+		}
+		return;
+	}
 	const sx = cw / GW,
 		sy = ch / GH;
 	ctx.clearRect(0, 0, cw, ch);
@@ -7527,51 +7677,6 @@ function draw(ctx, cw, ch) {
 	if (tut && tut.active) {
 		const step = tutStep();
 
-		// Intro screen — shown before any steps
-		if (tut.phase === "intro") {
-			const ia = Math.min(1, tut.introAlpha);
-			ctx.globalAlpha = 0.7 * ia;
-			ctx.fillStyle = "#000";
-			ctx.fillRect(0, 0, GW, GH);
-
-			// Subtle accent line
-			ctx.globalAlpha = 0.15 * ia;
-			ctx.fillStyle = "#fff";
-			ctx.fillRect(GW / 2 - 60, GH / 2 - 56, 120, 1);
-
-			ctx.globalAlpha = ia;
-			ctx.fillStyle = "#fff";
-			ctx.font = 'bold 38px "Share Tech Mono",monospace';
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
-			ctx.shadowColor = "rgba(255,255,255,0.25)";
-			ctx.shadowBlur = 20;
-			ctx.fillText("TUTORIAL", GW / 2, GH / 2 - 34);
-			ctx.shadowBlur = 0;
-
-			// Accent line below title
-			ctx.globalAlpha = 0.15 * ia;
-			ctx.fillStyle = "#fff";
-			ctx.fillRect(GW / 2 - 60, GH / 2 - 12, 120, 1);
-
-			ctx.globalAlpha = 0.65 * ia;
-			ctx.fillStyle = "#b0b2c0";
-			ctx.font = '15px "Share Tech Mono",monospace';
-			ctx.fillText("Learn the basics before your first match", GW / 2, GH / 2 + 10);
-
-			const pulse = 0.4 + 0.6 * Math.sin((g.t || 0) * 3);
-			ctx.globalAlpha = pulse * 0.55 * ia;
-			ctx.fillStyle = "#8890a0";
-			ctx.font = '13px "Share Tech Mono",monospace';
-			ctx.fillText("PRESS ANY KEY TO START", GW / 2, GH / 2 + 48);
-
-			ctx.globalAlpha = 0.3 * ia;
-			ctx.fillStyle = "#667";
-			ctx.font = '11px "Share Tech Mono",monospace';
-			ctx.fillText("ESC TO SKIP", GW / 2, GH / 2 + 72);
-			ctx.globalAlpha = 1;
-		}
-
 		// Blocking overlay panel
 		if (step && tut.phase === "overlay") {
 			const oa = Math.min(1, tut.overlayAlpha);
@@ -7804,14 +7909,14 @@ function draw(ctx, cw, ch) {
 				ctx.globalAlpha = 1;
 			}
 		}
-		// Active phase hint bar at top
-		if (step && tut.phase === "active") {
+		// Active/wait phase hint bar at top (persists across serves)
+		if (step && (tut.phase === "active" || (tut.phase === "wait" && tut.completedSteps.length > 0 && tut.hintAlpha > 0))) {
 			const ha = Math.min(1, tut.hintAlpha);
 			if (ha > 0.01) {
 				const hintText = step.keyLabel || step.body;
-				ctx.font = 'bold 14px "Share Tech Mono",monospace';
+				ctx.font = 'bold 18px "Share Tech Mono",monospace';
 				const tw = ctx.measureText(hintText).width;
-				const hpW = tw + 36, hpH = 30;
+				const hpW = tw + 44, hpH = 38;
 				const hpX = GW / 2 - hpW / 2, hpY = 6;
 				ctx.globalAlpha = 0.75 * ha;
 				ctx.fillStyle = "rgba(8,8,14,0.92)";
@@ -7895,6 +8000,8 @@ function draw(ctx, cw, ch) {
 const $ = (id) => document.getElementById(id);
 function showScreen(id) {
 	stopCardPhysics();
+	$("pause-overlay").classList.add("hidden");
+	paused = false;
 	[
 		"menu-screen",
 		"cards-screen",
@@ -8094,7 +8201,7 @@ function handleContinue() {
 		// Tutorial: on loss, just restart the tutorial match
 		if (tut && tut.active) {
 			g = null;
-			startTutorial();
+			startTutorialGame();
 			return;
 		}
 		g = null;
@@ -8516,8 +8623,8 @@ function showUpgradeScreen(rewardTier, clearedDiff) {
 		if (!tip) {
 			tip = document.createElement("div");
 			tip.id = "tut-card-tip";
-			tip.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,10,16,0.92);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:10px 22px;text-align:center;pointer-events:none;animation:tutTipIn 0.5s ease-out;font-family:'Share Tech Mono',monospace;";
-			tip.innerHTML = '<div style="color:#fff;font-size:13px;font-weight:bold;letter-spacing:2px;margin-bottom:4px;">UPGRADE CARDS</div><div style="color:#99a;font-size:10px;">After each wave, choose a card to power up your paddle.</div><div style="color:#667;font-size:9px;margin-top:6px;">PICK ANY CARD TO CONTINUE</div>';
+			tip.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,10,16,0.94);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:16px 32px;text-align:center;pointer-events:none;animation:tutTipIn 0.5s ease-out;font-family:'Share Tech Mono',monospace;";
+			tip.innerHTML = '<div style="color:#fff;font-size:18px;font-weight:bold;letter-spacing:3px;margin-bottom:6px;">UPGRADE CARDS</div><div style="color:#99a;font-size:14px;">After each wave, choose a card to power up your paddle.</div><div style="color:#889;font-size:12px;margin-top:8px;">PICK ANY CARD TO CONTINUE</div>';
 			document.body.appendChild(tip);
 			// Add animation keyframes if not present
 			if (!document.getElementById("tut-tip-style")) {
@@ -8819,13 +8926,16 @@ window.addEventListener("keydown", (e) => {
 		}
 		if (tut.phase === "intro" || tut.phase === "overlay") {
 			e.preventDefault();
-			dismissTutOverlay();
+			dismissTutOverlay(k);
 			return;
 		}
 		keysDown[k] = true;
 		if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k))
 			e.preventDefault();
-		if (k === "q") doAbility();
+		if (k === "q") {
+			doAbility();
+			if (tut) tut.abilityUsed = true;
+		}
 		if (e.key === "Enter" && g && g.done) {
 			handleContinue();
 		}
@@ -8834,6 +8944,7 @@ window.addEventListener("keydown", (e) => {
 	if (k === "escape") {
 		if (curScreen === null && g && !g.done) {
 			paused = !paused;
+			$("pause-overlay").classList.toggle("hidden", !paused);
 		} else if (curScreen === "dev-screen") {
 			showScreen("menu-screen");
 		}
@@ -8851,7 +8962,7 @@ window.addEventListener("keyup", (e) => {
 });
 $("cv").addEventListener("click", () => {
 	if (tut && tut.active && (tut.phase === "intro" || tut.phase === "overlay")) {
-		dismissTutOverlay();
+		dismissTutOverlay(null);
 		return;
 	}
 	if (!advanceFoolDialogue(g)) handleContinue();
@@ -8876,6 +8987,21 @@ $("vic-again").onclick = () => {
 	wave = 1;
 	enemyUps = [];
 	chosenOppCfg = null;
+	showScreen("menu-screen");
+};
+$("pause-resume").onclick = () => {
+	paused = false;
+	$("pause-overlay").classList.add("hidden");
+};
+$("pause-menu").onclick = () => {
+	paused = false;
+	$("pause-overlay").classList.add("hidden");
+	g = null;
+	savedState = null;
+	wave = 1;
+	enemyUps = [];
+	chosenOppCfg = null;
+	if (tut) { tut = null; }
 	showScreen("menu-screen");
 };
 
@@ -9253,20 +9379,16 @@ function loop(now) {
 		draw(ctx, viewW, viewH);
 		ctx.fillStyle = "rgba(0,0,0,0.4)";
 		ctx.fillRect(0, 0, viewW, viewH);
-		ctx.fillStyle = "#fff";
-		ctx.font = 'bold 40px "Share Tech Mono",monospace';
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-		ctx.shadowColor = "black";
-		ctx.shadowBlur = 10;
-		ctx.fillText("PAUSED", viewW / 2, viewH / 2);
-		ctx.shadowBlur = 0;
 		requestAnimationFrame(loop);
 		return;
 	}
 	const dt = Math.min((now - last) / 1000, 0.04);
 	last = now;
-	if (curScreen === null && g) {
+	if (curScreen === null && !g && tut && tut.active && tut.phase === "intro") {
+		// Tutorial intro: no game yet, just render intro overlay
+		updateTutorial(dt);
+		draw(ctx, viewW, viewH);
+	} else if (curScreen === null && g) {
 		try {
 			update(dt);
 			draw(ctx, viewW, viewH);

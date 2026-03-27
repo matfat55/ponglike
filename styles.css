@@ -60,6 +60,13 @@ canvas {
 	opacity: 0;
 	pointer-events: none;
 }
+#pause-overlay.hidden {
+	display: none !important;
+}
+@keyframes pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
 .title {
 	font-size: clamp(48px, 10vw, 90px);
 	letter-spacing: clamp(10px, 3vw, 30px);
